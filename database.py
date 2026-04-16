@@ -37,7 +37,9 @@ def initialize_db():
         status       ENUM('IN STOCK','LOW STOCK','OUT OF STOCK')
             NOT NULL DEFAULT 'IN STOCK',
         last_updated DATETIME      DEFAULT CURRENT_TIMESTAMP
-            ON UPDATE CURRENT_TIMESTAMP
+            ON UPDATE CURRENT_TIMESTAMP,
+        profit decimal(10,2) DEFAULT 0.00
+        
     );
     """,
 
@@ -63,9 +65,9 @@ def initialize_db():
         amount_paid    DECIMAL(10,2) DEFAULT 0.00,
         change_amount  DECIMAL(10,2) DEFAULT 0.00,
         status         VARCHAR(30)   DEFAULT 'PAID',
-        created_by     INT           DEFAULT NULL,
+        created_by     VARCHAR(50)   DEFAULT NULL,
         FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON UPDATE CASCADE ON DELETE CASCADE,
-        FOREIGN KEY (created_by)  REFERENCES users(user_id)         ON UPDATE CASCADE
+        FOREIGN KEY (created_by)  REFERENCES users(username)        ON UPDATE CASCADE 
     );
     """,
 

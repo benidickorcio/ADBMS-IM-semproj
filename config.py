@@ -3,5 +3,5 @@ DB_CONFIG = {
     "host" : "localhost",
     "user" : "root",
     "password" : "",
-    "database" : "gasul_db"
+    "database" : "petron_gasul_db"
 }
