@@ -125,21 +125,103 @@ def delete_customer(customer_id):
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # Remove sales history first to allow deleting the customer
+        # Get customer name before deletion for backup reference
+        cursor.execute("SELECT name FROM customers WHERE customer_id=%s", (customer_id,))
+        result = cursor.fetchone()
+        customer_name = result[0] if result else "Unknown"
+        
+        # Update sales to remove customer reference but keep the sales history
         cursor.execute(
-            "DELETE si FROM sold_items si JOIN sales s ON si.sale_id = s.sales_id WHERE s.customer_id = %s",
+            "UPDATE sales SET customer_id = NULL WHERE customer_id = %s",
             (customer_id,)
         )
-        cursor.execute("DELETE FROM sales WHERE customer_id=%s", (customer_id,))
+        
+        # Now delete the customer (trigger will auto-backup to customers_backup)
         cursor.execute("DELETE FROM customers WHERE customer_id=%s", (customer_id,))
         conn.commit()
         rowcount = cursor.rowcount
-    except mysql.connector.Error as e:
+    except Exception as e:
         conn.rollback()
-        print(f"Error deleting customer and sales history: {e}")
+        print(f"Error deleting customer: {e}")
         rowcount = 0
     finally:
         cursor.close()
         conn.close()
     return rowcount
+
+
+def get_all_backup_customers():
+    """Fetch all customers from the customers_backup table"""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM customers_backup ORDER BY customer_id")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def search_backup_customer(keyword):
+    """Search customers in the customers_backup table"""
+    query = "%" + keyword + "%"
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM customers_backup WHERE name LIKE %s OR contact_number LIKE %s OR address LIKE %s",
+        (query, query, query),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def restore_backup_customer(customer_id):
+    """Restore a customer from backup to active customers table"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Get customer data from backup
+        cursor.execute("SELECT * FROM customers_backup WHERE customer_id=%s", (customer_id,))
+        customer_data = cursor.fetchone()
+        
+        if not customer_data:
+            return False
+        
+        # Insert back to active customers table
+        # Note: customer_data indices: [0]=backup_id, [1]=customer_id, [2]=name, [3]=address, [4]=contact_number, [5]=current_balance
+        cursor.execute(
+            "INSERT INTO customers (customer_id, name, address, contact_number, current_balance) VALUES (%s, %s, %s, %s, %s)",
+            (customer_data[1], customer_data[2], customer_data[3], customer_data[4], customer_data[5])
+        )
+        
+        # Delete from backup
+        cursor.execute("DELETE FROM customers_backup WHERE customer_id=%s", (customer_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"Error restoring customer from backup: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_backup_customer_permanently(customer_id):
+    """Permanently delete a customer from the backup table"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM customers_backup WHERE customer_id=%s", (customer_id,))
+        conn.commit()
+        rowcount = cursor.rowcount
+        return rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        print(f"Error permanently deleting customer from backup: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
 

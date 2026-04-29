@@ -1,9 +1,11 @@
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 from models.product import view_products, get_product_by_id
-from models.sales import create_sale
+from models.restock import get_latest_unit_cost
+from models.sales import create_sale, log_transaction
 from models.customer import get_all_customers, add_customer
 from utils.receipt import get_sale_data, generate_receipt, save_receipt
+from utils.auth import get_current_user
 from database import get_connection
 
 
@@ -66,7 +68,7 @@ class POSScreen:
         self.products_tv = ttk.Treeview(product_frame, columns=("id","name","price","qty"), show="headings", height=8)
         for col, txt in [("id","ID"),("name","Name"),("price","Price"),("qty","Stock")]:
             self.products_tv.heading(col, text=txt, command=lambda c=col: self.sort_products(c, False))
-            self.products_tv.column(col, width=120)
+            self.products_tv.column(col, width=120, anchor="center")
         self.products_tv.pack(fill="both", expand=True, padx=5, pady=(0, 10))
 
         self.cart_header = ctk.CTkLabel(cart_frame, text="CART", font=ctk.CTkFont(size=16, weight="bold"))
@@ -84,7 +86,7 @@ class POSScreen:
         self.cart_tv = ttk.Treeview(cart_frame, columns=("prod","qty","unit","subtotal"), show="headings", height=8)
         for col, txt in [("prod","Product"),("qty","QTY"),("unit","Unit"),("subtotal","Subtotal")]:
             self.cart_tv.heading(col, text=txt)
-            self.cart_tv.column(col, width=120)
+            self.cart_tv.column(col, width=120, anchor="center")
         self.cart_tv.pack(fill="both", expand=True, padx=5, pady=(0, 10))
 
         # Checkout and add-customer buttons between tables
@@ -126,12 +128,15 @@ class POSScreen:
         self.products_tv.delete(*self.products_tv.get_children())
         for p in self.products:
             if not keyword or keyword in p["name"].lower():
-                self.products_tv.insert("", "end", values=(p["product_id"], p["name"], f"₱{p['price']:.2f}", p["quantity"]))
+                latest_cost = get_latest_unit_cost(p["product_id"]) or float(p.get("cost_price", 0.0))
+                profit = float(p.get("profit", 0.0))
+                price_value = latest_cost + profit if latest_cost > 0 else p.get("total_price", p.get("price", 0.0))
+                self.products_tv.insert("", "end", values=(p["product_id"], p["name"], f"{price_value:.2f}", p["quantity"]))
 
     def sort_products(self, col, reverse=False):
         def parse(value):
             try:
-                return float(value.replace("₱", "")) if "₱" in value else int(value)
+                return float(str(value).replace("₱", ""))
             except Exception:
                 return value
 
@@ -154,17 +159,21 @@ class POSScreen:
             )
             return False
 
+        latest_cost = get_latest_unit_cost(product["product_id"]) or float(product.get("cost_price", 0.0))
+        profit = float(product.get("profit", 0.0))
+        unit_price = latest_cost + profit if latest_cost > 0 else product.get("total_price", product.get("price", 0.0))
         existing = next((x for x in self.cart_items if x["product_id"] == product["product_id"]), None)
         if existing:
             existing["quantity"] += qty
-            existing["subtotal"] = existing["quantity"] * product["price"]
+            existing["unit_price"] = unit_price
+            existing["subtotal"] = existing["quantity"] * unit_price
         else:
             self.cart_items.append({
                 "product_id": product["product_id"],
                 "name": product["name"],
                 "quantity": qty,
-                "unit_price": product["price"],
-                "subtotal": qty * product["price"],
+                "unit_price": unit_price,
+                "subtotal": qty * unit_price,
             })
 
         self.update_cart_view()
@@ -207,10 +216,18 @@ class POSScreen:
 
     def show_checkout_dialog(self):
         if not self.cart_items:
+            # Log empty cart attempt
+            current_user = get_current_user()
+            user = current_user.get("username") if current_user else "Unknown"
+            log_transaction(None, user, "FAILED", "Cart is empty: No items to checkout.")
             self.status_label.configure(text="Cart is empty", text_color="#f87171")
             return
 
         if not self.customer_options:
+            # Log no customers attempt
+            current_user = get_current_user()
+            user = current_user.get("username") if current_user else "Unknown"
+            log_transaction(None, user, "FAILED", "No customers available: Cannot proceed with checkout.")
             self.status_label.configure(text="No customers available", text_color="#f87171")
             messagebox.showwarning("Warning", "No customers available. Please add a customer first.")
             return
@@ -263,6 +280,10 @@ class POSScreen:
             if payment_method == "OTHER":
                 custom_payment = custom_payment_entry.get().strip()
                 if not custom_payment:
+                    # Log missing custom payment method
+                    current_user = get_current_user()
+                    user = current_user.get("username") if current_user else "Unknown"
+                    log_transaction(None, user, "FAILED", "Missing Information: Custom payment method is required.")
                     messagebox.showerror("Missing Information", "Please enter a custom payment method.")
                     return
                 payment_method = custom_payment.upper()
@@ -274,6 +295,10 @@ class POSScreen:
 
             if payment_method == "CREDIT":
                 if not customer_id:
+                    # Log invalid customer attempt
+                    current_user = get_current_user()
+                    user = current_user.get("username") if current_user else "Unknown"
+                    log_transaction(None, user, "FAILED", "Invalid Customer: Walk-in customers cannot use credit.")
                     messagebox.showerror("Invalid Customer", "Please select a registered customer for CREDIT purchases. Walk-in customers cannot use credit.")
                     return
                 
@@ -281,6 +306,10 @@ class POSScreen:
                     amount_paid = 0.0
                 else:
                     if not amount_paid_text.replace('.', '', 1).isdigit():
+                        # Log invalid payment attempt
+                        current_user = get_current_user()
+                        user = current_user.get("username") if current_user else "Unknown"
+                        log_transaction(None, user, "FAILED", "Invalid Payment: Enter a valid amount paid.")
                         messagebox.showerror("Invalid Payment", "Enter a valid amount paid.")
                         return
                     amount_paid = float(amount_paid_text)
@@ -314,10 +343,18 @@ Do you want to proceed?"""
                         return
             else:
                 if not amount_paid_text or not amount_paid_text.replace('.', '', 1).isdigit():
+                    # Log invalid payment attempt
+                    current_user = get_current_user()
+                    user = current_user.get("username") if current_user else "Unknown"
+                    log_transaction(None, user, "FAILED", "Invalid Payment: Enter a valid amount paid.")
                     messagebox.showerror("Invalid Payment", "Enter a valid amount paid.")
                     return
                 amount_paid = float(amount_paid_text)
                 if amount_paid < total:
+                    # Log insufficient payment attempt
+                    current_user = get_current_user()
+                    user = current_user.get("username") if current_user else "Unknown"
+                    log_transaction(None, user, "FAILED", f"Insufficient Payment: Amount paid (₱{amount_paid:.2f}) is less than total (₱{total:.2f}).")
                     messagebox.showerror("Insufficient Payment", "Amount paid must be equal or greater than total.")
                     return
                 
@@ -344,6 +381,10 @@ Do you want to proceed?"""
             try:
                 sale_id = create_sale(customer_id, sale_items, payment_method, amount_to_save, total, actual_received)
             except Exception as e:
+                # Log failed transaction from POS
+                current_user = get_current_user()
+                user = current_user.get("username") if current_user else "Unknown"
+                log_transaction(None, user, "FAILED", str(e))
                 messagebox.showerror("Transaction Error", f"Error processing sale: {str(e)}")
                 return
 
@@ -371,6 +412,10 @@ Do you want to proceed?"""
                     self.on_checkout(sale_id)
                 self.clear_cart()
             except Exception as e:
+                # Log failed transaction from POS
+                current_user = get_current_user()
+                user = current_user.get("username") if current_user else "Unknown"
+                log_transaction(None, user, "FAILED", str(e))
                 messagebox.showerror("Error", f"Error completing transaction: {str(e)}")
                 checkout_dialog.destroy()
 
@@ -425,11 +470,19 @@ Do you want to proceed?"""
             contact = contact_entry.get().strip()
 
             if not name or not address:
+                # Log failed customer creation attempt
+                current_user = get_current_user()
+                user = current_user.get("username") if current_user else "Unknown"
+                log_transaction(None, user, "FAILED", "Missing Information: Customer name and address are required.")
                 messagebox.showerror("Missing Information", "Please fill in customer name and address.")
                 return
 
             # Contact number must be exactly 11 digits if provided
             if contact and len(contact) != 11:
+                # Log invalid contact attempt
+                current_user = get_current_user()
+                user = current_user.get("username") if current_user else "Unknown"
+                log_transaction(None, user, "FAILED", f"Invalid Contact Number: Must be exactly 11 digits, got {len(contact)} digits.")
                 messagebox.showerror("Invalid Contact Number", "Contact number must be exactly 11 digits.")
                 return
 

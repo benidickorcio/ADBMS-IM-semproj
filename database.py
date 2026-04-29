@@ -7,12 +7,10 @@ def get_connection():
     return mysql.connector.connect(**DB_CONFIG)
 
 
-        
-
-
 def initialize_db():
     conn = get_connection()
     cursor = conn.cursor()
+    
     
     
     tables = [
@@ -32,14 +30,14 @@ def initialize_db():
     CREATE TABLE IF NOT EXISTS products (
         product_id   INT           AUTO_INCREMENT PRIMARY KEY,
         name         VARCHAR(50)   NOT NULL,
-        price        DECIMAL(10,2) NOT NULL,
         quantity     INT           NOT NULL DEFAULT 0,
+        cost_price        DECIMAL(10,2) NOT NULL,
+        profit DECIMAL(10,2) DEFAULT 0.00,
+        total_price DECIMAL(10,2) DEFAULT 0.00,
         status       ENUM('IN STOCK','LOW STOCK','OUT OF STOCK')
             NOT NULL DEFAULT 'IN STOCK',
-        last_updated DATETIME      DEFAULT CURRENT_TIMESTAMP
-            ON UPDATE CURRENT_TIMESTAMP,
-        profit decimal(10,2) DEFAULT 0.00
-        
+        last_updated DATETIME  DEFAULT CURRENT_TIMESTAMP
+            ON UPDATE CURRENT_TIMESTAMP
     );
     """,
 
@@ -54,7 +52,20 @@ def initialize_db():
     );
     """,
 
-    # SALES
+    # CUSTOMERS BACKUP
+    """
+    CREATE TABLE IF NOT EXISTS customers_backup (
+        backup_id       INT           AUTO_INCREMENT PRIMARY KEY,
+        customer_id     INT           NOT NULL,
+        name            VARCHAR(100)  NOT NULL,
+        address         VARCHAR(200),
+        contact_number  VARCHAR(20),
+        current_balance DECIMAL(10,2) DEFAULT 0.00,
+        deleted_at      DATETIME      DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+
+    # SALES sa created by ay kung sino yung nag process ng sale, pwede admin or cashier username
     """
     CREATE TABLE IF NOT EXISTS sales (
         sales_id       INT           AUTO_INCREMENT PRIMARY KEY,
@@ -66,7 +77,7 @@ def initialize_db():
         change_amount  DECIMAL(10,2) DEFAULT 0.00,
         status         VARCHAR(30)   DEFAULT 'PAID',
         created_by     VARCHAR(50)   DEFAULT NULL,
-        FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON UPDATE CASCADE ON DELETE CASCADE,
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON UPDATE CASCADE,
         FOREIGN KEY (created_by)  REFERENCES users(username)        ON UPDATE CASCADE 
     );
     """,
@@ -80,7 +91,7 @@ def initialize_db():
         quantity   INT           NOT NULL,
         unit_price DECIMAL(10,2) NOT NULL,
         subtotal   DECIMAL(10,2) NOT NULL,
-        FOREIGN KEY (sale_id)    REFERENCES sales(sales_id)       ON UPDATE CASCADE ON DELETE CASCADE,
+        FOREIGN KEY (sale_id)    REFERENCES sales(sales_id)       ON UPDATE CASCADE,
         FOREIGN KEY (product_id) REFERENCES products(product_id)  ON UPDATE CASCADE
     );
     """,
@@ -94,6 +105,20 @@ def initialize_db():
         unit_cost    DECIMAL(10,2) NOT NULL,
         restock_date DATETIME      DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (product_id) REFERENCES products(product_id) ON UPDATE CASCADE
+    );
+    """,
+
+    # 7. TRANSACTIONS LOG
+    """
+    CREATE TABLE IF NOT EXISTS transactions (
+        transaction_id   INT           AUTO_INCREMENT PRIMARY KEY,
+        sale_id          INT           DEFAULT NULL,
+        created_by       VARCHAR(50)   NOT NULL,
+        transaction_date DATETIME      DEFAULT CURRENT_TIMESTAMP,
+        status           ENUM('SUCCESS','FAILED') NOT NULL DEFAULT 'SUCCESS',
+        message          TEXT          DEFAULT NULL,
+        FOREIGN KEY (sale_id)    REFERENCES sales(sales_id)   ON UPDATE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(username)   ON UPDATE CASCADE
     );
     """,
 ]
@@ -129,8 +154,31 @@ def initialize_db():
             END IF;
         END
     """,
+
+    # BACKUP TRIGGER — fires before a customer row is deleted
+    """CREATE TRIGGER IF NOT EXISTS backup_customer_on_delete
+        BEFORE DELETE ON customers
+        FOR EACH ROW
+        BEGIN
+            INSERT INTO customers_backup (
+                customer_id,
+                name,
+                address,
+                contact_number,
+                current_balance,
+                deleted_at
+            )
+            VALUES (
+                OLD.customer_id,
+                OLD.name,
+                OLD.address,
+                OLD.contact_number,
+                OLD.current_balance,
+                NOW()
+            );
+        END
+    """,
 ]
-    # top selling products view for sales
     views = [
         
         """
@@ -155,8 +203,8 @@ def initialize_db():
             s.sale_date       AS sale_date,
             s.payment_method  AS payment_method,
             s.status          AS status,
-            COALESCE(c.name, 'Walk-in') AS customer_name
-
+            s.created_by      AS created_by,
+            c.name            AS customer_name
         FROM sales s
         LEFT JOIN customers  c  ON s.customer_id = c.customer_id
         INNER JOIN sold_items si ON s.sales_id    = si.sale_id
@@ -279,14 +327,13 @@ END
         cursor.execute("""
                     INSERT INTO users (name,username,password_hash,role)
                     VALUES(%s,%s,%s,%s)
-                    """,("Ezekiel Reyes","devskiel",default_password,"ADMIN"))
+                    """,("ARNEL ERMITA","rnel",default_password,"ADMIN"))
         
     # -------CASHIER DEFAULT ACCOUNTS-------------------------------------
         def_cashier_password = hashlib.sha256("cashier123".encode()).hexdigest()
         
         cashier_def_accounts = [
-            ("Giane Ogana","Doxgiane",def_cashier_password,"CASHIER"),
-            ("Benedick Orcio","Doxbene",def_cashier_password,"CASHIER")
+            ("RONALD GREGORIO","ronald",def_cashier_password,"CASHIER")
         ]
         cursor.executemany("""
                         INSERT INTO users (name,username,password_hash,role)
@@ -312,4 +359,122 @@ def get_current_user(username: str, password_hash: str) -> dict | None:
     cursor.close()
     conn.close()
     return user
+
+
+# ========== USER MANAGEMENT FUNCTIONS ==========
+
+def get_all_users():
+    """Get all users (for admin view). Returns list of user dicts."""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT user_id, name, username, password_hash, role FROM users ORDER BY user_id")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def delete_user_by_username(username: str) -> bool:
+    """Delete user by username. Returns True if successful, False if failed or not allowed."""
+    # List of default accounts that cannot be deleted
+    default_usernames = ["devskiel", "Doxgiane", "Doxbene"]
+    
+    if username in default_usernames:
+        return False
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("DELETE FROM users WHERE username = %s", (username,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise Exception(f"Error deleting user: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_username(old_username: str, new_username: str) -> bool:
+    """Update username. Returns True if successful."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("UPDATE users SET username = %s WHERE username = %s", (new_username, old_username))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise Exception(f"Error updating username: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_password(username: str, new_password_hash: str) -> bool:
+    """Update password. Returns True if successful."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("UPDATE users SET password_hash = %s WHERE username = %s", (new_password_hash, username))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise Exception(f"Error updating password: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def add_user(name: str, username: str, password: str, role: str) -> bool:
+    """Add new user. Returns True if successful."""
+    import hashlib
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            "INSERT INTO users (name, username, password_hash, role) VALUES (%s, %s, %s, %s)",
+            (name, username, password_hash, role)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        raise Exception(f"Error adding user: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_admin_count() -> int:
+    """Get the number of admin accounts."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'ADMIN'")
+    count = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    return count
+
+
+def verify_password(username: str, password: str) -> bool:
+    """Verify if password is correct for the given username."""
+    import hashlib
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users WHERE username = %s AND password_hash = %s", (username, password_hash))
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return result is not None
 

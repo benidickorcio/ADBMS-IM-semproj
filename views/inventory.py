@@ -1,7 +1,7 @@
 # stock monitoring & restock management - combined view
 import customtkinter as ctk
 from models.product import view_products, add_product, update_product, delete_product, get_product_by_id, get_total_inventory_value
-from models.restock import restock_product, get_all_restock, get_total_restock_cost, get_restock_by_id, update_restock, delete_restock
+from models.restock import restock_product, get_all_restock, get_total_restock_cost, get_restock_by_id, update_restock, delete_restock, get_latest_unit_cost
 from tkinter import messagebox, ttk
 
 class InventoryAndRestockScreen():
@@ -26,7 +26,7 @@ class InventoryAndRestockScreen():
         inventory_frame = ctk.CTkFrame(main_container, corner_radius=0)
         inventory_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
 
-        inventory_title = ctk.CTkLabel(inventory_frame, text="INVENTORY", font=ctk.CTkFont(size=16, weight="bold"))
+        inventory_title = ctk.CTkLabel(inventory_frame, text="PRODUCTS", font=ctk.CTkFont(size=16, weight="bold"))
         inventory_title.pack(anchor="center", pady=5)
 
         inventory_btn_frame = ctk.CTkFrame(inventory_frame, corner_radius=0)
@@ -47,17 +47,21 @@ class InventoryAndRestockScreen():
         self.tree_frame = ctk.CTkFrame(inventory_frame, corner_radius=0)
         self.tree_frame.pack(fill="both", expand=True)
 
-        self.tree = ttk.Treeview(self.tree_frame, columns=("ID", "Name", "Price", "Quantity", "Status"), show="headings", height=2)
+        self.tree = ttk.Treeview(self.tree_frame, columns=("ID", "Name", "Cost Price", "Quantity", "Profit", "Total Price", "Status"), show="headings", height=2)
         self.tree.heading("ID", text="ID")
         self.tree.heading("Name", text="Name")
-        self.tree.heading("Price", text="Price")
+        self.tree.heading("Cost Price", text="Cost Price")
         self.tree.heading("Quantity", text="Quantity")
+        self.tree.heading("Profit", text="Profit")
+        self.tree.heading("Total Price", text="Total Price")
         self.tree.heading("Status", text="Status")
 
         self.tree.column("ID", width=70, anchor="center", stretch=True)
-        self.tree.column("Name", width=200, anchor="w", stretch=True)
-        self.tree.column("Price", width=110, anchor="e", stretch=True)
+        self.tree.column("Name", width=180, anchor="center", stretch=True)
+        self.tree.column("Cost Price", width=95, anchor="center", stretch=True)
         self.tree.column("Quantity", width=90, anchor="center", stretch=True)
+        self.tree.column("Profit", width=85, anchor="center", stretch=True)
+        self.tree.column("Total Price", width=95, anchor="center", stretch=True)
         self.tree.column("Status", width=90, anchor="center", stretch=True)
 
         self.vsb = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
@@ -112,10 +116,10 @@ class InventoryAndRestockScreen():
         self.restock_tree.heading("Date", text="Date")
 
         self.restock_tree.column("ID", width=70, anchor="center", stretch=True)
-        self.restock_tree.column("Product", width=180, anchor="w", stretch=True)
+        self.restock_tree.column("Product", width=180, anchor="center", stretch=True)
         self.restock_tree.column("Quantity", width=90, anchor="center", stretch=True)
-        self.restock_tree.column("Unit Cost", width=100, anchor="e", stretch=True)
-        self.restock_tree.column("Total Cost", width=100, anchor="e", stretch=True)
+        self.restock_tree.column("Unit Cost", width=100, anchor="center", stretch=True)
+        self.restock_tree.column("Total Cost", width=100, anchor="center", stretch=True)
         self.restock_tree.column("Date", width=120, anchor="center", stretch=True)
 
         restock_vsb = ttk.Scrollbar(restock_tree_frame, orient="vertical", command=self.restock_tree.yview)
@@ -181,12 +185,26 @@ class InventoryAndRestockScreen():
 
         products = view_products()
         for product in products:
+            latest_unit_cost = get_latest_unit_cost(product['product_id']) or float(product.get('cost_price', 0.0))
             tag = "normal"
             if product['quantity'] == 0:
                 tag = "out"
             elif product['quantity'] <= 10:
                 tag = "low"
-            self.tree.insert("", "end", values=(product['product_id'], product['name'], f"₱{product['price']:.2f}", product['quantity'], product['status']), tags=(tag,))
+            self.tree.insert(
+                "",
+                "end",
+                values=(
+                    product['product_id'],
+                    product['name'],
+                    f"{latest_unit_cost:.2f}",
+                    product['quantity'],
+                    f"{float(product.get('profit', 0)):.2f}",
+                    f"{latest_unit_cost + float(product.get('profit', 0)):.2f}",
+                    product['status'],
+                ),
+                tags=(tag,),
+            )
 
         # Update total inventory value
         total_value = get_total_inventory_value()
@@ -212,8 +230,8 @@ class InventoryAndRestockScreen():
     def product_form(self, product_id):
         # Top level window
         self.form_window = ctk.CTkToplevel(self.parent)
-        self.form_window.title("Add/Edit Product")
-        self.form_window.geometry("400x300")
+        self.form_window.title("Add Product" if product_id is None else "Edit Product")
+        self.form_window.geometry("400x150" if product_id is None else "400x500")
         self.form_window.resizable(False, False)
         self.form_window.grab_set()  # Make it modal
 
@@ -222,20 +240,34 @@ class InventoryAndRestockScreen():
         self.name_entry = ctk.CTkEntry(self.form_window)
         self.name_entry.pack(pady=5)
 
-        ctk.CTkLabel(self.form_window, text="Price:").pack(pady=5)
-        self.price_entry = ctk.CTkEntry(self.form_window)
-        self.price_entry.pack(pady=5)
+        if product_id is not None:
+            # Editing: show all fields
+            ctk.CTkLabel(self.form_window, text="Cost Price:").pack(pady=5)
+            self.cost_price_entry = ctk.CTkEntry(self.form_window)
+            self.cost_price_entry.pack(pady=5)
 
-        ctk.CTkLabel(self.form_window, text="Quantity:").pack(pady=5)
-        self.qty_entry = ctk.CTkEntry(self.form_window)
-        self.qty_entry.pack(pady=5)
+            ctk.CTkLabel(self.form_window, text="Profit:").pack(pady=5)
+            self.profit_entry = ctk.CTkEntry(self.form_window)
+            self.profit_entry.pack(pady=5)
+
+            ctk.CTkLabel(self.form_window, text="Total Price:").pack(pady=5)
+            self.total_price_entry = ctk.CTkEntry(self.form_window)
+            self.total_price_entry.pack(pady=5)
+
+            ctk.CTkLabel(self.form_window, text="Quantity:").pack(pady=5)
+            self.qty_entry = ctk.CTkEntry(self.form_window)
+            self.qty_entry.pack(pady=5)
 
         # If editing, fill fields
         if product_id:
             product = get_product_by_id(product_id)
+            latest_cost = float(get_latest_unit_cost(product_id) or 0.0)
             if product:
+                profit_value = float(product.get('profit', 0) or 0.0)
                 self.name_entry.insert(0, product['name'])
-                self.price_entry.insert(0, str(product['price']))
+                self.cost_price_entry.insert(0, str(latest_cost))
+                self.profit_entry.insert(0, str(profit_value))
+                self.total_price_entry.insert(0, str(latest_cost + profit_value))
                 self.qty_entry.insert(0, str(product['quantity']))
 
         # Buttons
@@ -249,22 +281,45 @@ class InventoryAndRestockScreen():
     def save_product(self, product_id):
         name = self.name_entry.get().strip()
         try:
-            price = float(self.price_entry.get().strip())
-            qty = int(self.qty_entry.get().strip())
+            if product_id is not None:
+                # Editing: get all fields
+                cost_price = float(self.cost_price_entry.get().strip())
+                profit = float(self.profit_entry.get().strip())
+                total_price = float(self.total_price_entry.get().strip())
+                qty = int(self.qty_entry.get().strip())
+            else:
+                # Adding: set defaults
+                cost_price = 0.0
+                profit = 0.0
+                total_price = 0.0
+                qty = 0
         except ValueError:
-            messagebox.showerror("Error", "Invalid price or quantity")
+            if product_id is not None:
+                messagebox.showerror("Error", "Invalid numeric values for cost price, profit, total price, or quantity")
+            else:
+                messagebox.showerror("Error", "Invalid input")
             return
         if not name:
             messagebox.showerror("Error", "Name is required")
             return
-        if price < 0 or qty < 0:
-            messagebox.showerror("Error", "Price and quantity must be non-negative")
+        if product_id is not None and qty < 0:
+            messagebox.showerror("Error", "Quantity must be non-negative")
+            return
+        if product_id is not None and (cost_price < 0 or profit < 0 or total_price < 0):
+            messagebox.showerror("Error", "Cost price, profit, and total price must be non-negative")
             return
 
         if product_id:
-            update_product(product_id, name, price, qty)
+            update_product(
+                product_id,
+                name=name,
+                cost_price=cost_price,
+                profit=profit,
+                total_price=total_price,
+                quantity=qty,
+            )
         else:
-            add_product(name, price, qty)
+            add_product(name, total_price, qty, cost_price=cost_price, profit=profit)
         self.form_window.destroy()
         self.load_inventory()
 
@@ -295,6 +350,11 @@ class InventoryAndRestockScreen():
         self.restock_cost_entry = ctk.CTkEntry(self.restock_form_window)
         self.restock_cost_entry.pack(pady=5)
 
+        # Profit
+        ctk.CTkLabel(self.restock_form_window, text="Profit:").pack(pady=5)
+        self.restock_profit_entry = ctk.CTkEntry(self.restock_form_window)
+        self.restock_profit_entry.pack(pady=5)
+
         # Buttons
         btn_frame = ctk.CTkFrame(self.restock_form_window, corner_radius=0)
         btn_frame.pack(pady=20)
@@ -311,16 +371,19 @@ class InventoryAndRestockScreen():
         product_id = self.product_options[product_name]
         qty_str = self.restock_qty_entry.get().strip()
         cost_str = self.restock_cost_entry.get().strip()
+        profit_str = self.restock_profit_entry.get().strip()
         try:
             qty = int(qty_str)
             cost = float(cost_str)
+            profit = float(profit_str)
         except ValueError:
-            messagebox.showerror("Error", "Invalid quantity or cost")
+            messagebox.showerror("Error", "Invalid quantity, cost, or profit")
             return
-        if qty <= 0 or cost < 0:
-            messagebox.showerror("Error", "Quantity must be positive, cost non-negative")
+        if qty <= 0 or cost < 0 or profit < 0:
+            messagebox.showerror("Error", "Quantity must be positive, cost and profit non-negative")
             return
         restock_product(product_id, qty, cost)
+        update_product(product_id, profit=profit, total_price=cost + profit)
         self.restock_form_window.destroy()
         self.load_restock_history()
         self.load_inventory()
@@ -346,6 +409,12 @@ class InventoryAndRestockScreen():
         self.restock_cost_entry = ctk.CTkEntry(self.restock_form_window)
         self.restock_cost_entry.insert(0, str(restock['unit_cost']))
         self.restock_cost_entry.pack(pady=5)
+        ctk.CTkLabel(self.restock_form_window, text="Profit:").pack(pady=5)
+        self.restock_profit_entry = ctk.CTkEntry(self.restock_form_window)
+        product = get_product_by_id(restock['product_id'])
+        if product:
+            self.restock_profit_entry.insert(0, str(product.get('profit', 0)))
+        self.restock_profit_entry.pack(pady=5)
         btn_frame = ctk.CTkFrame(self.restock_form_window, corner_radius=0)
         btn_frame.pack(pady=20)
         save_btn = ctk.CTkButton(btn_frame, text="Save", command=self.save_update_restock)
@@ -356,16 +425,21 @@ class InventoryAndRestockScreen():
     def save_update_restock(self):
         qty_str = self.restock_qty_entry.get().strip()
         cost_str = self.restock_cost_entry.get().strip()
+        profit_str = self.restock_profit_entry.get().strip()
         try:
             qty = int(qty_str)
             cost = float(cost_str)
+            profit = float(profit_str)
         except ValueError:
-            messagebox.showerror("Error", "Invalid quantity or cost")
+            messagebox.showerror("Error", "Invalid quantity, cost, or profit")
             return
-        if qty <= 0 or cost < 0:
-            messagebox.showerror("Error", "Quantity must be positive, cost non-negative")
+        if qty <= 0 or cost < 0 or profit < 0:
+            messagebox.showerror("Error", "Quantity must be positive, cost and profit non-negative")
             return
         update_restock(self.selected_restock, qty, cost)
+        restock = get_restock_by_id(self.selected_restock)
+        if restock:
+            update_product(restock['product_id'], profit=profit, total_price=cost + profit)
         self.restock_form_window.destroy()
         self.load_restock_history()
         self.load_inventory()
@@ -412,17 +486,22 @@ class InventoryScreen():
         self.tree_frame = ctk.CTkFrame(self.parent, corner_radius=0)
         self.tree_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
-        self.tree = ttk.Treeview(self.tree_frame, columns=("ID", "Name", "Price", "Quantity", "Status"), show="headings", height=2)
+        self.tree = ttk.Treeview(self.tree_frame, columns=("ID", "Name", "Cost Price", "Quantity", "Profit", "Total Price", "Status"), show="headings", height=2)
         self.tree.heading("ID", text="ID")
         self.tree.heading("Name", text="Name")
-        self.tree.heading("Price", text="Price")
+        self.tree.heading("Cost Price", text="Cost Price")
         self.tree.heading("Quantity", text="Quantity")
+        self.tree.heading("Profit", text="Profit")
+        self.tree.heading("Total Price", text="Total Price")
         self.tree.heading("Status", text="Status")
 
         self.tree.column("ID", width=50, anchor="center")
-        self.tree.column("Name", width=200, anchor="w")
-        self.tree.column("Price", width=100, anchor="e")
-        self.tree.column("Quantity", width=100, anchor="center")
+        self.tree.column("Name", width=180, anchor="center")
+        self.tree.column("Cost Price", width=110, anchor="center")
+        self.tree.column("Quantity", width=90, anchor="center")
+        self.tree.column("Profit", width=90, anchor="center")
+        self.tree.column("Total Price", width=110, anchor="center")
+        self.tree.column("Quantity", width=90, anchor="center")
         self.tree.column("Status", width=100, anchor="center")
 
         # Scrollbars
@@ -466,12 +545,26 @@ class InventoryScreen():
 
         products = view_products()
         for product in products:
+            latest_unit_cost = get_latest_unit_cost(product['product_id']) or float(product.get('cost_price', 0.0))
             tag = "normal"
             if product['quantity'] == 0:
                 tag = "out"
             elif product['quantity'] <= 10:
                 tag = "low"
-            self.tree.insert("", "end", values=(product['product_id'], product['name'], f"₱{product['price']:.2f}", product['quantity'], product['status']), tags=(tag,))
+            self.tree.insert(
+                "",
+                "end",
+                values=(
+                    product['product_id'],
+                    product['name'],
+                    f"{latest_unit_cost:.2f}",
+                    product['quantity'],
+                    f"{float(product.get('profit', 0)):.2f}",
+                    f"{latest_unit_cost + float(product.get('profit', 0)):.2f}",
+                    product['status'],
+                ),
+                tags=(tag,),
+            )
 
         # Update total inventory value
         total_value = get_total_inventory_value()
@@ -497,8 +590,8 @@ class InventoryScreen():
     def product_form(self, product_id):
         # Top level window
         self.form_window = ctk.CTkToplevel(self.parent)
-        self.form_window.title("Add/Edit Product")
-        self.form_window.geometry("400x300")
+        self.form_window.title("Add Product" if product_id is None else "Edit Product")
+        self.form_window.geometry("400x150" if product_id is None else "400x500")
         self.form_window.resizable(False, False)
         self.form_window.grab_set()  # Make it modal
 
@@ -507,20 +600,33 @@ class InventoryScreen():
         self.name_entry = ctk.CTkEntry(self.form_window)
         self.name_entry.pack(pady=5)
 
-        ctk.CTkLabel(self.form_window, text="Price:").pack(pady=5)
-        self.price_entry = ctk.CTkEntry(self.form_window)
-        self.price_entry.pack(pady=5)
+        if product_id is not None:
+            # Editing: show all fields
+            ctk.CTkLabel(self.form_window, text="Cost Price:").pack(pady=5)
+            self.cost_price_entry = ctk.CTkEntry(self.form_window)
+            self.cost_price_entry.pack(pady=5)
 
-        ctk.CTkLabel(self.form_window, text="Quantity:").pack(pady=5)
-        self.qty_entry = ctk.CTkEntry(self.form_window)
-        self.qty_entry.pack(pady=5)
+            ctk.CTkLabel(self.form_window, text="Profit:").pack(pady=5)
+            self.profit_entry = ctk.CTkEntry(self.form_window)
+            self.profit_entry.pack(pady=5)
+
+            ctk.CTkLabel(self.form_window, text="Total Price:").pack(pady=5)
+            self.total_price_entry = ctk.CTkEntry(self.form_window)
+            self.total_price_entry.pack(pady=5)
+
+            ctk.CTkLabel(self.form_window, text="Quantity:").pack(pady=5)
+            self.qty_entry = ctk.CTkEntry(self.form_window)
+            self.qty_entry.pack(pady=5)
 
         # If editing, fill fields
         if product_id:
             product = get_product_by_id(product_id)
+            latest_cost = get_latest_unit_cost(product_id) or 0.0
             if product:
                 self.name_entry.insert(0, product['name'])
-                self.price_entry.insert(0, str(product['price']))
+                self.cost_price_entry.insert(0, str(latest_cost))
+                self.profit_entry.insert(0, str(product.get('profit', 0)))
+                self.total_price_entry.insert(0, str(latest_cost + product.get('profit', 0)))
                 self.qty_entry.insert(0, str(product['quantity']))
 
         # Buttons
@@ -534,17 +640,44 @@ class InventoryScreen():
     def save_product(self, product_id):
         name = self.name_entry.get().strip()
         try:
-            price = float(self.price_entry.get().strip())
-            qty = int(self.qty_entry.get().strip())
+            if product_id is not None:
+                # Editing: get all fields
+                cost_price = float(self.cost_price_entry.get().strip())
+                profit = float(self.profit_entry.get().strip())
+                total_price = float(self.total_price_entry.get().strip())
+                qty = int(self.qty_entry.get().strip())
+            else:
+                # Adding: set defaults
+                cost_price = 0.0
+                profit = 0.0
+                total_price = 0.0
+                qty = 0
         except ValueError:
-            messagebox.showerror("Error", "Invalid price or quantity")
+            if product_id is not None:
+                messagebox.showerror("Error", "Invalid numeric values for cost price, profit, total price, or quantity")
+            else:
+                messagebox.showerror("Error", "Invalid input")
             return
         if not name:
             messagebox.showerror("Error", "Name is required")
             return
+        if product_id is not None and qty < 0:
+            messagebox.showerror("Error", "Quantity must be non-negative")
+            return
+        if product_id is not None and (cost_price < 0 or profit < 0 or total_price < 0):
+            messagebox.showerror("Error", "Cost price, profit, and total price must be non-negative")
+            return
+
         if product_id:
-            update_product(product_id, name=name, price=price, quantity=qty)
+            update_product(
+                product_id,
+                name=name,
+                cost_price=cost_price,
+                profit=profit,
+                total_price=total_price,
+                quantity=qty,
+            )
         else:
-            add_product(name, price, qty)
+            add_product(name, total_price, qty, cost_price=cost_price, profit=profit)
         self.form_window.destroy()
         self.load_inventory()

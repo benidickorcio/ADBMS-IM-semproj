@@ -66,6 +66,15 @@ def update_restock(restock_id, quantity, unit_cost):
     conn.close()
 
 
+def get_latest_unit_cost(product_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT unit_cost FROM restock WHERE product_id = %s ORDER BY restock_id DESC LIMIT 1", (product_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return float(row[0]) if row and row[0] is not None else 0.0
+
 def delete_restock(restock_id):
     conn = get_connection()
     cursor = conn.cursor()

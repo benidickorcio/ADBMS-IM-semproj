@@ -1,12 +1,14 @@
 from database import get_connection
 
 
-def add_product(name, price, quantity):
+def add_product(name, total_price=0.0, quantity=0, cost_price=0.0, profit=None):
+    if profit is None:
+        profit = float(total_price) - float(cost_price)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO products (name, price, quantity) VALUES (%s, %s, %s)",
-        (name, price, quantity),
+        "INSERT INTO products (name, cost_price, profit, total_price, quantity) VALUES (%s, %s, %s, %s, %s)",
+        (name, cost_price, profit, total_price, quantity),
     )
     product_id = cursor.lastrowid
     conn.commit()
@@ -18,11 +20,41 @@ def add_product(name, price, quantity):
 def delete_product(product_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM products WHERE product_id=%s", (product_id,))
-    conn.commit()
-    rowcount = cursor.rowcount
-    cursor.close()
-    conn.close()
+    try:
+        # First get all sale_ids that contain this product
+        cursor.execute(
+            "SELECT DISTINCT sale_id FROM sold_items WHERE product_id = %s",
+            (product_id,)
+        )
+        sale_ids = [row[0] for row in cursor.fetchall()]
+        
+        # Delete related sold_items
+        cursor.execute("DELETE FROM sold_items WHERE product_id=%s", (product_id,))
+        
+        # Delete related restock history
+        cursor.execute("DELETE FROM restock WHERE product_id=%s", (product_id,))
+        
+        # Delete sales that had this product (only if no other products)
+        for sale_id in sale_ids:
+            cursor.execute(
+                "SELECT COUNT(*) FROM sold_items WHERE sale_id = %s",
+                (sale_id,)
+            )
+            count = cursor.fetchone()[0]
+            if count == 0:
+                cursor.execute("DELETE FROM sales WHERE sales_id = %s", (sale_id,))
+        
+        # Now delete the product
+        cursor.execute("DELETE FROM products WHERE product_id=%s", (product_id,))
+        conn.commit()
+        rowcount = cursor.rowcount
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting product: {e}")
+        rowcount = 0
+    finally:
+        cursor.close()
+        conn.close()
     return rowcount
 
 
@@ -33,19 +65,28 @@ def view_products():
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
+    for row in rows:
+        if 'price' not in row:
+            row['price'] = row.get('total_price', 0.0)
     return rows
 
 
-def update_product(product_id, name=None, price=None, quantity=None):
+def update_product(product_id, name=None, cost_price=None, profit=None, total_price=None, quantity=None):
     fields = []
     values = []
 
     if name is not None:
         fields.append("name=%s")
         values.append(name)
-    if price is not None:
-        fields.append("price=%s")
-        values.append(price)
+    if cost_price is not None:
+        fields.append("cost_price=%s")
+        values.append(cost_price)
+    if profit is not None:
+        fields.append("profit=%s")
+        values.append(profit)
+    if total_price is not None:
+        fields.append("total_price=%s")
+        values.append(total_price)
     if quantity is not None:
         fields.append("quantity=%s")
         values.append(quantity)
@@ -73,6 +114,8 @@ def get_product_by_id(product_id):
     row = cursor.fetchone()
     cursor.close()
     conn.close()
+    if row is not None and 'price' not in row:
+        row['price'] = row.get('total_price', 0.0)
     return row
 
 
@@ -137,13 +180,34 @@ def get_all_inventory():
 
 
 def get_total_inventory_value():
-    """Calculate total inventory value"""
+    """Calculate total inventory value using the latest restock unit cost or stored pricing."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT SUM(quantity * price) AS total_value FROM products")
+        cursor.execute(
+            """
+            SELECT SUM(
+                p.quantity * (
+                    CASE
+                        WHEN latest.unit_cost IS NOT NULL AND latest.unit_cost > 0 THEN latest.unit_cost + COALESCE(p.profit, 0)
+                        ELSE COALESCE(NULLIF(p.total_price, 0), COALESCE(p.cost_price, 0) + COALESCE(p.profit, 0))
+                    END
+                )
+            ) AS total_value
+            FROM products p
+            LEFT JOIN (
+                SELECT r.product_id, r.unit_cost
+                FROM restock r
+                JOIN (
+                    SELECT product_id, MAX(restock_id) AS max_id
+                    FROM restock
+                    GROUP BY product_id
+                ) mx ON r.product_id = mx.product_id AND r.restock_id = mx.max_id
+            ) latest ON p.product_id = latest.product_id
+            """
+        )
         result = cursor.fetchone()
-        total_value = float(result[0]) if result[0] else 0.0
+        total_value = float(result[0]) if result and result[0] is not None else 0.0
     except Exception as e:
         print(f"Error calculating total inventory value: {e}")
         total_value = 0.0

@@ -61,7 +61,7 @@ class SalesReportView(ctk.CTkFrame):
         if view_type == "sales":
             self.header.configure(text="Sales History")
             self.total_label.configure(text="Total Sales: ₱0.00")
-            columns = ("sale_id", "product_name", "unit_price", "quantity", "subtotal", "sale_date", "payment_method", "status", "customer_name")
+            columns = ("sale_id", "product_name", "unit_price", "quantity", "subtotal", "sale_date", "payment_method", "status", "created_by", "customer_name")
             headings = [
                 ("sale_id", "Sale ID", 70),
                 ("product_name", "Product", 180),
@@ -71,6 +71,7 @@ class SalesReportView(ctk.CTkFrame):
                 ("sale_date", "Date", 150),
                 ("payment_method", "Payment", 100),
                 ("status", "Status", 90),
+                ("created_by", "Created By", 120),
                 ("customer_name", "Customer", 160),
             ]
         elif view_type == "money_flow":
@@ -78,7 +79,7 @@ class SalesReportView(ctk.CTkFrame):
             self.total_label.configure(text="Total Flow: ₱0.00")
             columns = ("transaction_type", "date", "product_name", "quantity", "amount")
             headings = [
-                ("transaction_type", "Type", 100),
+                ("transaction_type", "Transaction", 100),
                 ("date", "Date", 150),
                 ("product_name", "Product", 180),
                 ("quantity", "Qty", 60),
@@ -117,6 +118,7 @@ class SalesReportView(ctk.CTkFrame):
                     sale_date,
                     sale.get("payment_method"),
                     sale.get("status"),
+                    sale.get("created_by") or "Unknown",
                     sale.get("customer_name") or "Walk-in",
                 ),
             )
@@ -146,5 +148,5 @@ class SalesReportView(ctk.CTkFrame):
                     f"₱{amount:.2f}",
                 ),
             )
-        self.total_label.configure(text=f"Total Flow: ₱{total_flow:.2f}")
+        self.total_label.configure(text=f"Total Amount: ₱{total_flow:.2f}")
         self.status_label.configure(text=f"Loaded {len(money_flow_rows)} transactions")

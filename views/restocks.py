@@ -37,12 +37,12 @@ class RestockScreen():
         self.tree.heading("Total Cost", text="Total Cost")
         self.tree.heading("Date", text="Date")
 
-        self.tree.column("ID", width=50)
-        self.tree.column("Product", width=150)
-        self.tree.column("Quantity", width=100)
-        self.tree.column("Unit Cost", width=100)
-        self.tree.column("Total Cost", width=100)
-        self.tree.column("Date", width=150)
+        self.tree.column("ID", width=50, anchor="center")
+        self.tree.column("Product", width=150, anchor="center")
+        self.tree.column("Quantity", width=100, anchor="center")
+        self.tree.column("Unit Cost", width=100, anchor="center")
+        self.tree.column("Total Cost", width=100, anchor="center")
+        self.tree.column("Date", width=150, anchor="center")
 
         self.tree.pack(side="left", fill="both", expand=True)
 

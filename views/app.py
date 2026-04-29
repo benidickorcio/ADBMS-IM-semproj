@@ -4,6 +4,8 @@ from views.pos import POSScreen
 from views.customers_ui import CustomersScreen
 from views.inventory import InventoryAndRestockScreen
 from views.sales import SalesReportView
+from views.dashboard import DashboardScreen
+from views.settings import SettingsWindow
 from utils.auth import logout as auth_logout, set_current_user
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("dark-blue")
@@ -70,8 +72,15 @@ class CTKMainApp(ctk.CTk):
 
 
         if role == "CASHIER":
-            for btn in [self.pos_btn, self.customers_btn, self.settings_btn, self.logout_btn]:
-                btn.pack(pady=8, padx=10)
+            self.operations_label = ctk.CTkLabel(self.sidebar_frame, text="OPERATIONS ───────", text_color="#FFEE07", font=ctk.CTkFont(size=13, weight="bold"))
+            self.operations_label.pack(anchor="w", padx=10)
+            self.pos_btn.pack(pady=8, padx=10)
+            self.customers_btn.pack(pady=8, padx=10)
+            
+            self.system_label = ctk.CTkLabel(self.sidebar_frame, text="SYSTEM ─────────", text_color="#FFEE07", font=ctk.CTkFont(size=13, weight="bold"))
+            self.system_label.pack(anchor="w", padx=10)
+            self.settings_btn.pack(pady=8, padx=10)
+            self.logout_btn.pack(pady=8, padx=10)
             self.show_pos()
 
             return
@@ -106,11 +115,8 @@ class CTKMainApp(ctk.CTk):
 
     def show_dashboard(self):
         self.clear_content()
-        self.content_label = ctk.CTkLabel(self.panel_frame, text="Dashboard", font=ctk.CTkFont(size=18, weight="bold"))
-        self.content_label.pack(pady=20)
-        self.stats_card = ctk.CTkFrame(self.panel_frame, corner_radius=12, fg_color="#1f2937")
-        self.stats_card.pack(fill="x", padx=20, pady=10)
-        self._update_stats("Dashboard overview")
+        self.dashboard_screen = DashboardScreen(self.panel_frame)
+        self.dashboard_screen.pack(fill="both", expand=True)
 
     def show_inventory(self):
         self.clear_content()
@@ -142,12 +148,12 @@ class CTKMainApp(ctk.CTk):
 
 
     def show_settings(self):
+        # Clear current content
         self.clear_content()
-        self.content_label = ctk.CTkLabel(self.panel_frame, text="Settings", font=ctk.CTkFont(size=18, weight="bold"))
-        self.content_label.pack(pady=20)
-        self.stats_card = ctk.CTkFrame(self.panel_frame, corner_radius=12, fg_color="#1f2937")
-        self.stats_card.pack(fill="x", padx=20, pady=10)
-        self._update_stats("User management and application settings")
+        
+        # Create settings window as a frame in the panel
+        self.settings_window = SettingsWindow(self.panel_frame)
+        self.settings_window.pack(fill="both", expand=True, padx=20, pady=20)
 
     def _update_stats(self, text):
         for widget in self.stats_card.winfo_children():

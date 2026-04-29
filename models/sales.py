@@ -1,77 +1,121 @@
 from database import get_connection
 from models.product import deduct_sale
 from models.customer import get_customer_by_id, update_customer
+from utils.auth import get_current_user
 
 
+def log_transaction(sale_id, created_by, status, message):
+    """Log a transaction to the transactions table."""
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO transactions (sale_id, created_by, status, message)
+            VALUES (%s, %s, %s, %s)
+        """, (sale_id, created_by, status, message))
+        conn.commit()
+    except Exception as e:
+        print(f"Error logging transaction: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
-def create_sale(customer_id, items, payment_method, amount_paid, total_amount=None, actual_amount_received=None):
-    # items = list of dicts: [{product_id, quantity, unit_price, subtotal}] 
+def create_sale(customer_id, items, payment_method, amount_paid, total_amount=None, actual_amount_received=None, created_by=None):
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-        # Calculate total if not provided
+        # Calculate totals (no comprehensions)
         if total_amount is None:
-            total_amount = sum(item["subtotal"] for item in items)
+            total = 0
+            for item in items:
+                total = total + item["subtotal"]
+            total_amount = total
         
-        # Ensure numeric types for calculations
-        total_amount = float(total_amount)
-        amount_paid = float(amount_paid)
-        
-        # For CASH: calculate change based on actual amount received, not amount_paid
         if actual_amount_received is not None:
-            actual_amount_received = float(actual_amount_received)
-            change_amount = max(0, actual_amount_received - total_amount)
+            change_amount = float(actual_amount_received) - total_amount
+            if change_amount < 0:
+                change_amount = 0
         else:
-            change_amount = max(0, amount_paid - total_amount)
+            change_amount = float(amount_paid) - total_amount
+            if change_amount < 0:
+                change_amount = 0
         
-        status = "PAID" if payment_method != "CREDIT" else "NOT PAID"
+        if payment_method == "CREDIT":
+            status = "NOT PAID"
+        else:
+            status = "PAID"
 
-        cursor.execute(
-            "INSERT INTO sales (customer_id, total_amount, payment_method, amount_paid, change_amount, status, created_by) VALUES (%s, %s, %s, %s, %s, %s, NULL)",
-            (customer_id, total_amount, payment_method, amount_paid, change_amount, status),
-        )
+        if created_by is None:
+            current_user = get_current_user()
+            if current_user:
+                created_by = current_user.get("username")
+
+        # 1. INSERT SALE
+        cursor.execute("""
+            INSERT INTO sales (customer_id, total_amount, payment_method, amount_paid, change_amount, status, created_by) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (customer_id, total_amount, payment_method, amount_paid, change_amount, status, created_by))
+        
         sale_id = cursor.lastrowid
 
+        # 2. INSERT SOLD ITEMS + DEDUCT INVENTORY
         for item in items:
-            cursor.execute(
-                "INSERT INTO sold_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES (%s, %s, %s, %s, %s)",
-                (sale_id, item["product_id"], item["quantity"], item["unit_price"], item["subtotal"]),
-            )
+            cursor.execute("""
+                INSERT INTO sold_items (sale_id, product_id, quantity, unit_price, subtotal) 
+                VALUES (%s, %s, %s, %s, %s)
+            """, (sale_id, item["product_id"], item["quantity"], item["unit_price"], item["subtotal"]))
+            
             deduct_sale(item["product_id"], item["quantity"], cursor=cursor, conn=conn)
 
+        # 3. UPDATE CUSTOMER BALANCE (if credit)
         if payment_method == "CREDIT" and customer_id:
-            try:
-                customer = get_customer_by_id(customer_id)
-                if customer:
-                    # Balance due = total - amount paid
-                    # If they paid less than total, add the difference to their credit balance
-                    # If they paid more than total, subtract from their balance
-                    balance_due = total_amount - amount_paid
-                    new_balance = float(customer["current_balance"]) + balance_due
-                    
-                    # Update customer with new balance (pass current connection to reuse it)
-                    update_customer(
-                        customer_id,
-                        name=customer["name"],
-                        address=customer["address"],
-                        contact_number=customer["contact_number"],
-                        current_balance=new_balance,
-                        conn=conn
-                    )
-            except Exception as e:
-                print(f"Error updating customer balance: {e}")
+            customer = get_customer_by_id(customer_id)
+            if customer:
+                balance_due = total_amount - amount_paid
+                new_balance = float(customer["current_balance"]) + balance_due
+                update_customer(customer_id, current_balance=new_balance, conn=conn)
 
         conn.commit()
-        cursor.close()
-        conn.close()
+        
+        # 4. LOG SUCCESSFUL TRANSACTION (after commit)
+        log_transaction(sale_id, created_by, "SUCCESS", "Sale completed successfully.")
+        
         return sale_id
+
     except Exception as e:
         conn.rollback()
+        # Log failed transaction using separate connection
+        log_transaction(None, created_by, "FAILED", str(e))
+        raise Exception(f"Database error: {str(e)}")
+    finally:
         cursor.close()
         conn.close()
-        raise Exception(f"Database error creating sale: {str(e)}")
+
+
+def get_sales_history():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM sales_view")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_money_flow_history():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM money_flow ORDER BY date ASC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
 
 
 
