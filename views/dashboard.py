@@ -27,11 +27,11 @@ SUBTEXT   = "#6b7280"
 TEXT      = "#f9fafb"
 
 def get_total_customers():
-    """Get total number of customers from database"""
+    """Get total number of active customers from database"""
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT COUNT(*) AS total FROM customers")
+        cursor.execute("SELECT COUNT(*) AS total FROM customers WHERE is_deleted = FALSE")
         result = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -679,7 +679,7 @@ if __name__ == "__main__":
     class DashboardView(ctk.CTk):
         def __init__(self):
             super().__init__()
-            self.title("Petron Gasul System - Dashboard")
+            self.title("ERMITA LPG Refilling Station - Dashboard")
             self.geometry("1200x800")
             self.minsize(1000, 700)
             self.configure(fg_color=BG)

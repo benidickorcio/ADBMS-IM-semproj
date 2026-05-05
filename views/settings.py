@@ -1,18 +1,21 @@
 import customtkinter as ctk
 from database import get_all_users, delete_user_by_username, update_username, update_password, add_user, get_admin_count, verify_password
 from utils.auth import get_current_user, is_admin
+from utils.colors import get_color
 import hashlib
 import tkinter as tk
 from tkinter import messagebox
 
 
 class SettingsWindow(ctk.CTkFrame):
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, on_delete_own_account=None, parent_app=None):
+        super().__init__(parent, fg_color=get_color("bg_primary"))
         
         # Get current user
         self.current_user = get_current_user()
         self.role = self.current_user.get("role", "CASHIER") if self.current_user else "CASHIER"
+        self.on_delete_own_account = on_delete_own_account
+        self.parent_app = parent_app
         
         self._setup_ui()
     
@@ -35,7 +38,9 @@ class SettingsWindow(ctk.CTkFrame):
         title = ctk.CTkLabel(
             self,
             text="⚙️ Settings",
-            font=ctk.CTkFont(size=24, weight="bold")
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color=get_color("primary"),
+            fg_color="transparent"
         )
         title.pack(pady=20)
         
@@ -44,12 +49,13 @@ class SettingsWindow(ctk.CTkFrame):
             self,
             text=f"Logged in as: {self.role}",
             font=ctk.CTkFont(size=14),
-            text_color="#37E9FD"
+            text_color=get_color("primary"),
+            fg_color="transparent"
         )
         role_label.pack(pady=(0, 20))
         
-        # Create notebook/tabview for different settings
-        self.tabview = ctk.CTkTabview(self, width=700, height=500)
+        # notebook/tabview for different settings
+        self.tabview = ctk.CTkTabview(self, width=700, height=500, fg_color=get_color("bg_primary"))
         self.tabview.pack(pady=10, padx=20, fill="both", expand=True)
         
         # Add tabs based on role
@@ -59,22 +65,25 @@ class SettingsWindow(ctk.CTkFrame):
             self._setup_cashier_tabs()
     
     def _setup_admin_tabs(self):
-        # ========== ACCOUNTS TAB ==========
+        # ACCOUNTS TAB 
         self.accounts_tab = self.tabview.add("👥 Accounts")
+        self.accounts_tab.configure(fg_color=get_color("bg_primary"))
         
         # Frame for accounts list
-        list_frame = ctk.CTkFrame(self.accounts_tab)
+        list_frame = ctk.CTkFrame(self.accounts_tab, fg_color=get_color("bg_primary"))
         list_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Label
         ctk.CTkLabel(
             list_frame,
             text="All User Accounts",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=get_color("primary"),
+            fg_color="transparent"
         ).pack(pady=10)
         
         # Scrollable frame for accounts
-        self.accounts_scroll = ctk.CTkScrollableFrame(list_frame, label_text="Accounts")
+        self.accounts_scroll = ctk.CTkScrollableFrame(list_frame, label_text="Accounts", fg_color=get_color("bg_secondary"))
         self.accounts_scroll.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Refresh button
@@ -86,19 +95,19 @@ class SettingsWindow(ctk.CTkFrame):
         )
         refresh_btn.pack(pady=10)
         
-        # ========== ADD ACCOUNT TAB ==========
+        # ADD ACCOUNT TAB
         self.add_tab = self.tabview.add("➕ Add Account")
         self._setup_add_account_tab()
         
-        # ========== DELETE ACCOUNT TAB ==========
+        # DELETE ACCOUNT TAB
         self.delete_tab = self.tabview.add("🗑️ Delete Account")
         self._setup_delete_account_tab()
         
-        # ========== CHANGE USERNAME TAB ==========
+        # CHANGE USERNAME TAB
         self.username_tab = self.tabview.add("📝 Change Username")
         self._setup_change_username_tab()
         
-        # ========== CHANGE PASSWORD TAB ==========
+        # CHANGE PASSWORD TAB
         self.password_tab = self.tabview.add("🔑 Change Password")
         self._setup_change_password_tab()
         
@@ -107,6 +116,7 @@ class SettingsWindow(ctk.CTkFrame):
     
     def _setup_add_account_tab(self):
         frame = ctk.CTkFrame(self.add_tab)
+        frame.configure(fg_color=get_color("bg_primary"))
         frame.pack(fill="both", expand=True, padx=20, pady=20)
         
         ctk.CTkLabel(
@@ -117,6 +127,8 @@ class SettingsWindow(ctk.CTkFrame):
         
         # Form container using grid
         form_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        
+        
         form_frame.pack(pady=10)
         
         # Name row
@@ -191,14 +203,45 @@ class SettingsWindow(ctk.CTkFrame):
     def _setup_delete_account_tab(self):
         frame = ctk.CTkFrame(self.delete_tab)
         frame.pack(fill="both", expand=True, padx=20, pady=20)
+        frame.configure(fg_color=get_color("bg_primary"))
+        
+        # DELETE OWN ACCOUNT SECTION
+        ctk.CTkLabel(
+            frame,
+            text="Delete Your Own Account",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#FFEE07"
+        ).pack(pady=(10, 5))
         
         ctk.CTkLabel(
             frame,
-            text="Delete Account",
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(pady=20)
+            text="Enter your password to confirm deletion of your own account",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        ).pack(pady=(0, 15))
         
-        # ========== DELETE OTHER ACCOUNT SECTION ==========
+        delete_own_btn = ctk.CTkButton(
+            frame,
+            text="🗑️ Delete My Account",
+            command=self._delete_own_account,
+            fg_color="#dc2626",
+            hover_color="#a41e2f",
+            width=200,
+            height=40
+        )
+        delete_own_btn.pack(pady=10)
+        
+        # Separator
+        ctk.CTkFrame(frame, height=2, fg_color="#37E9FD").pack(fill="x", pady=20)
+        
+        # DELETE OTHER ACCOUNT SECTION
+        ctk.CTkLabel(
+            frame,
+            text="Delete Other Accounts",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#FFEE07"
+        ).pack(pady=(10, 5))
+        
         ctk.CTkLabel(
             frame,
             text="Select account to delete:",
@@ -207,8 +250,10 @@ class SettingsWindow(ctk.CTkFrame):
         
         # Get all users for the dropdown
         all_users = get_all_users()
-        # Filter out default admin accounts
-        deletable_users = [u for u in all_users if u["username"] not in ["rnel"]]
+        # Filter out protected accounts (default system accounts)
+        protected_accounts = ["rnel"]
+        current_username = self.current_user.get("username", "") if self.current_user else ""
+        deletable_users = [u for u in all_users if u["username"] not in protected_accounts and u["username"] != current_username]
         
         # Create dropdown options
         self.delete_user_var = tk.StringVar()
@@ -230,13 +275,14 @@ class SettingsWindow(ctk.CTkFrame):
             )
             self.delete_optmenu.pack(pady=10)
         else:
-            ctk.CTkLabel(frame, text="No deletable accounts", text_color="gray").pack(pady=10)
+            ctk.CTkLabel(frame, text="No other deletable accounts", text_color="gray").pack(pady=10)
         
         delete_btn = ctk.CTkButton(
             frame,
-            text="🗑️ Delete Account",
+            text="🗑️ Delete Selected Account",
             command=self._delete_other_account,
             fg_color="#dc2626",
+            hover_color="#a41e2f",
             width=200,
             height=40
         )
@@ -308,7 +354,9 @@ class SettingsWindow(ctk.CTkFrame):
     
     def _refresh_delete_dropdown(self):
         all_users = get_all_users()
-        deletable_users = [u for u in all_users if u["username"] not in ["rnel"]]
+        protected_accounts = ["rnel"]
+        current_username = self.current_user.get("username", "") if self.current_user else ""
+        deletable_users = [u for u in all_users if u["username"] not in protected_accounts and u["username"] != current_username]
         
         user_options = []
         self.user_map = {}
@@ -321,6 +369,9 @@ class SettingsWindow(ctk.CTkFrame):
         if user_options:
             self.delete_optmenu.configure(values=user_options)
             self.delete_user_var.set(user_options[0])
+        else:
+            self.delete_optmenu.configure(values=[])
+            self.delete_user_var.set("")
     
     def _delete_own_account(self):
         """Open a top-level dialog to delete own account with password confirmation"""
@@ -331,7 +382,7 @@ class SettingsWindow(ctk.CTkFrame):
                 messagebox.showerror("Cannot Delete", "Cannot delete your account. At least 1 admin must remain in the system.")
                 return
         
-        # Create top-level dialog
+        # top-level dialog
         delete_dialog = ctk.CTkToplevel(self)
         delete_dialog.title("Delete Account - Password Confirmation")
         delete_dialog.geometry("450x300")
@@ -459,39 +510,61 @@ class SettingsWindow(ctk.CTkFrame):
             result = delete_user_by_username(current_username)
             if result:
                 popup.destroy()
-                messagebox.showinfo("Account Deleted", "Your account has been permanently deleted.")
-                # Redirect to login window
-                self._logout_and_show_login()
+                messagebox.showinfo("Account Deleted", "Your account has been permanently deleted.\nYou will be redirected to the login screen.")
+                # Redirect to login window using the callback
+                if self.on_delete_own_account:
+                    self.on_delete_own_account()
             else:
-                messagebox.showerror("Error", "Cannot delete your account")
+                messagebox.showerror("Error", "Cannot delete your account. At least 1 admin must remain in the system.")
         except Exception as e:
             messagebox.showerror("Error", f"Error: {str(e)}")
     
-    def _logout_and_show_login(self):
-        # Get the main app window
-        main_window = self.winfo_toplevel()
-        
-        # Clear all widgets
-        for widget in main_window.winfo_children():
-            widget.destroy()
-        
-        # Reinitialize the login window
-        from views.login import CTKLoginWindow
-        main_window.title("Petron Gasul Login")
-        login_window = CTKLoginWindow(main_window, on_success=main_window.on_login_success)
-        login_window.pack(fill="both", expand=True)
-    
     def _setup_cashier_tabs(self):
-        # ========== CHANGE USERNAME TAB ==========
+        # CHANGE USERNAME TAB
         self.username_tab = self.tabview.add("📝 Change Username")
         self._setup_change_username_tab()
         
-        # ========== CHANGE PASSWORD TAB ==========
+        # CHANGE PASSWORD TAB
         self.password_tab = self.tabview.add("🔑 Change Password")
         self._setup_change_password_tab()
+        
+        # DELETE OWN ACCOUNT TAB
+        self.delete_account_tab = self.tabview.add("🗑️ Delete Account")
+        self._setup_cashier_delete_account_tab()
+    
+    def _setup_cashier_delete_account_tab(self):
+        frame = ctk.CTkFrame(self.delete_account_tab)
+        frame.configure(fg_color=get_color("bg_primary"))
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        ctk.CTkLabel(
+            frame,
+            text="Delete Your Account",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="#dc2626"
+        ).pack(pady=20)
+        
+        ctk.CTkLabel(
+            frame,
+            text="Enter your password to confirm deletion of your account",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        ).pack(pady=10)
+        
+        delete_btn = ctk.CTkButton(
+            frame,
+            text="🗑️ Delete My Account",
+            command=self._delete_own_account,
+            fg_color="#dc2626",
+            hover_color="#a41e2f",
+            width=200,
+            height=40
+        )
+        delete_btn.pack(pady=20)
     
     def _setup_change_username_tab(self):
         frame = ctk.CTkFrame(self.username_tab)
+        frame.configure(fg_color=get_color("bg_primary"))
         frame.pack(fill="both", expand=True, padx=20, pady=20)
         
         ctk.CTkLabel(
@@ -519,6 +592,7 @@ class SettingsWindow(ctk.CTkFrame):
     
     def _setup_change_password_tab(self):
         frame = ctk.CTkFrame(self.password_tab)
+        frame.configure(fg_color=get_color("bg_primary"))
         frame.pack(fill="both", expand=True, padx=20, pady=20)
         
         ctk.CTkLabel(

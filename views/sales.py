@@ -1,11 +1,12 @@
 import customtkinter as ctk
 from tkinter import ttk
+from utils.colors import get_color
 from models.sales import get_sales_history, get_money_flow_history
 
 
 class SalesReportView(ctk.CTkFrame):
     def __init__(self, parent, **kwargs):
-        super().__init__(parent, **kwargs)
+        super().__init__(parent, fg_color=get_color("bg_primary"), **kwargs)
         self.pack(fill="both", expand=True, padx=10, pady=10)
         self.current_view = "sales"
         self.build_ui()
@@ -13,18 +14,20 @@ class SalesReportView(ctk.CTkFrame):
 
     def build_ui(self):
         # Header
-        self.header = ctk.CTkLabel(self, text="Sales History", font=ctk.CTkFont(size=20, weight="bold"))
+        self.header = ctk.CTkLabel(self, text="Sales History", font=ctk.CTkFont(size=20, weight="bold"), text_color=get_color("primary"), fg_color="transparent")
         self.header.pack(pady=12)
 
         # Separate frame for view buttons
-        view_frame = ctk.CTkFrame(self)
+        view_frame = ctk.CTkFrame(self, fg_color="transparent")
         view_frame.pack(fill="x", padx=10, pady=(0, 2))
 
         view_sales_btn = ctk.CTkButton(
             view_frame,
             text="View Sales",
             width=120,
-            command=lambda: self.set_view("sales")
+            command=lambda: self.set_view("sales"),
+            fg_color=get_color("button_primary"),
+            hover_color=get_color("button_primary_dark")
         )
         view_sales_btn.pack(side="left", padx=8, pady=8)
 
@@ -32,11 +35,13 @@ class SalesReportView(ctk.CTkFrame):
             view_frame,
             text="View Money Flow",
             width=120,
-            command=lambda: self.set_view("money_flow")
+            command=lambda: self.set_view("money_flow"),
+            fg_color=get_color("button_primary"),
+            hover_color=get_color("button_primary_dark")
         )
         view_money_flow_btn.pack(side="left", pady=8)
 
-        sales_frame = ctk.CTkFrame(self, corner_radius=12)
+        sales_frame = ctk.CTkFrame(self, corner_radius=12, fg_color=get_color("bg_secondary"))
         sales_frame.pack(fill="both", expand=True, padx=10, pady=(0, 2))
 
         self.sales_tv = ttk.Treeview(sales_frame, columns=(), show="headings", height=14)
@@ -47,13 +52,13 @@ class SalesReportView(ctk.CTkFrame):
         self.sales_tv.pack(fill="both", expand=True, padx=5, pady=5)
 
         # Bottom frame for status and total
-        bottom_frame = ctk.CTkFrame(self)
+        bottom_frame = ctk.CTkFrame(self, fg_color="transparent")
         bottom_frame.pack(fill="x", pady=(4, 0))
 
-        self.status_label = ctk.CTkLabel(bottom_frame, text="", text_color="#cbd5e1", font=ctk.CTkFont(size=12))
+        self.status_label = ctk.CTkLabel(bottom_frame, text="", text_color=get_color("text_secondary"), font=ctk.CTkFont(size=12))
         self.status_label.pack(anchor="w", side="left")
 
-        self.total_label = ctk.CTkLabel(bottom_frame, text="Total Sales: ₱0.00", text_color="#fbbf24", font=ctk.CTkFont(size=12, weight="bold"))
+        self.total_label = ctk.CTkLabel(bottom_frame, text="Total Sales: ₱0.00", text_color=get_color("accent_blue"), font=ctk.CTkFont(size=12, weight="bold"))
         self.total_label.pack(anchor="e", side="right")
 
     def set_view(self, view_type):

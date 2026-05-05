@@ -1,13 +1,14 @@
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 from models.customer import *
+from utils.colors import get_color
 from utils.receipt import get_payment_receipt_data, generate_receipt, save_payment_receipt
 
 
 class CustomersScreen:
     def __init__(self, parent):
         self.parent = parent
-        self.frame = ctk.CTkFrame(parent, corner_radius=12)
+        self.frame = ctk.CTkFrame(parent, corner_radius=12, fg_color=get_color("bg_primary"))
         self.frame.pack(expand=True, fill="both", padx=10, pady=10)
         
         # Track if we're viewing backup customers
@@ -17,21 +18,21 @@ class CustomersScreen:
         self.load_customers()
 
     def build_ui(self):
-        header = ctk.CTkLabel(self.frame, text="Customers", font=ctk.CTkFont(size=20, weight="bold"))
+        header = ctk.CTkLabel(self.frame, text="Customers", font=ctk.CTkFont(size=20, weight="bold"), text_color=get_color("primary"), fg_color="transparent")
         header.pack(pady=12)
 
-        search_frame = ctk.CTkFrame(self.frame)
+        search_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
         search_frame.pack(fill="x", padx=10, pady=(0, 10))
 
-        self.search_entry = ctk.CTkEntry(search_frame, placeholder_text="Search by name, contact, address...", width=320)
+        self.search_entry = ctk.CTkEntry(search_frame, placeholder_text="Search by name, contact, address...", width=320, fg_color=get_color("bg_secondary"), border_color=get_color("border"), text_color=get_color("text_primary"))
         self.search_entry.pack(side="left", padx=8)
         self.search_entry.bind("<KeyRelease>", lambda e: self.on_search())
 
-        self.refresh_btn = ctk.CTkButton(search_frame, text="Refresh", width=100, command=self.load_customers)
+        self.refresh_btn = ctk.CTkButton(search_frame, text="Refresh", width=100, command=self.load_customers, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.refresh_btn.pack(side="left", pady=8)
 
         columns = ("customer_id", "name", "contact_number", "address", "current_balance")
-        self.tree_frame = ctk.CTkFrame(self.frame)
+        self.tree_frame = ctk.CTkFrame(self.frame, fg_color=get_color("bg_secondary"), corner_radius=12)
         self.tree_frame.pack(fill="both", expand=True, padx=10, pady=8)
 
         self.customers_tv = ttk.Treeview(self.tree_frame, columns=columns, show="headings", height=12)
@@ -53,16 +54,16 @@ class CustomersScreen:
         self.customers_tv.configure(yscrollcommand=self.vsb.set)
         self.vsb.pack(side="right", fill="y")
 
-        actions = ctk.CTkFrame(self.frame)
+        actions = ctk.CTkFrame(self.frame, fg_color="transparent")
         actions.pack(fill="x", padx=10, pady=(0, 10))
 
-        self.add_btn = ctk.CTkButton(actions, text="Add Customer", width=120, command=self.open_add_customer)
+        self.add_btn = ctk.CTkButton(actions, text="Add Customer", width=120, command=self.open_add_customer, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.add_btn.pack(side="left", padx=8)
 
-        self.edit_btn = ctk.CTkButton(actions, text="Edit Selected", width=120, command=self.open_edit_customer, state="disabled")
+        self.edit_btn = ctk.CTkButton(actions, text="Edit Selected", width=120, command=self.open_edit_customer, state="disabled", fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.edit_btn.pack(side="left", padx=8)
 
-        self.delete_btn = ctk.CTkButton(actions, text="Delete Selected", width=120, command=self.delete_selected_customer, state="disabled")
+        self.delete_btn = ctk.CTkButton(actions, text="Delete Selected", width=120, command=self.delete_selected_customer, state="disabled", fg_color=get_color("status_error"), hover_color=get_color("status_error_dark"))
         self.delete_btn.pack(side="left", padx=8)
 
         self.mark_paid_btn = ctk.CTkButton(
@@ -71,8 +72,8 @@ class CustomersScreen:
             width=140,
             command=self.mark_selected_paid,
             state="disabled",
-            fg_color="#16a34a",
-            hover_color="#15803d"
+            fg_color=get_color("status_success"),
+            hover_color=get_color("status_success_dark")
         )
         self.mark_paid_btn.pack(side="left", padx=8)
 
@@ -81,8 +82,8 @@ class CustomersScreen:
             text="Deleted Customers",
             width=140,
             command=self.view_deleted_customers,
-            fg_color="#f59e0b",
-            hover_color="#d97706"
+            fg_color=get_color("status_warning"),
+            hover_color=get_color("status_warning_dark")
         )
         self.deleted_customers_btn.pack(side="left", padx=8)
 
@@ -92,8 +93,8 @@ class CustomersScreen:
             text="View Customers",
             width=140,
             command=self.view_active_customers,
-            fg_color="#3b82f6",
-            hover_color="#1d4ed8",
+            fg_color=get_color("button_primary"),
+            hover_color=get_color("button_primary_dark"),
             state="disabled"
         )
 
@@ -115,7 +116,7 @@ class CustomersScreen:
             width=140,
             command=self.delete_permanently_selected_customer,
             state="disabled",
-            fg_color="#ef4444",
+            fg_color=get_color("status_error_dark"),
             hover_color="#dc2626"
         )
 

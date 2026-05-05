@@ -12,10 +12,10 @@ def get_sale_data(sale_id):
         # Get sale info
         cursor.execute(
             """SELECT s.sales_id, s.sale_date, COALESCE(c.name) as customer_name,
-                      s.total_amount, s.amount_paid, s.change_amount, s.payment_method
-               FROM sales s
-               LEFT JOIN customers c ON s.customer_id = c.customer_id
-               WHERE s.sales_id = %s""",
+                    s.total_amount, s.amount_paid, s.change_amount, s.payment_method
+                FROM sales s
+                LEFT JOIN customers c ON s.customer_id = c.customer_id
+                WHERE s.sales_id = %s""",
             (sale_id,)
         )
         sale = cursor.fetchone()
@@ -28,9 +28,9 @@ def get_sale_data(sale_id):
         # Get sale items
         cursor.execute(
             """SELECT p.name as product_name, si.quantity, si.unit_price, si.subtotal
-               FROM sold_items si
-               JOIN products p ON si.product_id = p.product_id
-               WHERE si.sale_id = %s""",
+                FROM sold_items si
+                JOIN products p ON si.product_id = p.product_id
+                WHERE si.sale_id = %s""",
             (sale_id,)
         )
         items = cursor.fetchall()

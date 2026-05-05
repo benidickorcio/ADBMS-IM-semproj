@@ -2,7 +2,9 @@
 import customtkinter as ctk
 from models.product import view_products, add_product, update_product, delete_product, get_product_by_id, get_total_inventory_value
 from models.restock import restock_product, get_all_restock, get_total_restock_cost, get_restock_by_id, update_restock, delete_restock, get_latest_unit_cost
+from database import get_connection
 from tkinter import messagebox, ttk
+from utils.colors import get_color
 
 class InventoryAndRestockScreen():
     def __init__(self, parent):
@@ -15,36 +17,37 @@ class InventoryAndRestockScreen():
 
     def build_ui(self):
         # Title
-        self.title_label = ctk.CTkLabel(self.parent, text="Inventory Management", font=ctk.CTkFont(size=20, weight="bold"))
+        self.title_label = ctk.CTkLabel(self.parent, text="Inventory Management", font=ctk.CTkFont(size=20, weight="bold"), text_color=get_color("primary"), fg_color="transparent")
         self.title_label.pack(pady=5)
 
         # Main container with two sides
-        main_container = ctk.CTkFrame(self.parent, corner_radius=0)
+        main_container = ctk.CTkFrame(self.parent, corner_radius=0, fg_color=get_color("bg_primary"))
         main_container.pack(fill="both", expand=True, padx=(8,9), pady=(15,10))
 
         # LEFT SIDE - INVENTORY
-        inventory_frame = ctk.CTkFrame(main_container, corner_radius=0)
+        inventory_frame = ctk.CTkFrame(main_container, corner_radius=12, fg_color=get_color("bg_primary"))
         inventory_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
 
-        inventory_title = ctk.CTkLabel(inventory_frame, text="PRODUCTS", font=ctk.CTkFont(size=16, weight="bold"))
+        inventory_title = ctk.CTkLabel(inventory_frame, text="PRODUCTS", font=ctk.CTkFont(size=16, weight="bold"), text_color=get_color("primary"), fg_color="transparent")
         inventory_title.pack(anchor="center", pady=5)
 
-        inventory_btn_frame = ctk.CTkFrame(inventory_frame, corner_radius=0)
+        inventory_btn_frame = ctk.CTkFrame(inventory_frame, corner_radius=0, fg_color="transparent")
+        inventory_btn_frame.configure(fg_color=get_color("bg_primary"))
         inventory_btn_frame.pack(fill="x", padx=3, pady=(0, 3))
 
-        self.add_btn = ctk.CTkButton(inventory_btn_frame, text="Add", command=self.add_product, width=100)
+        self.add_btn = ctk.CTkButton(inventory_btn_frame, text="Add", command=self.add_product, width=100, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.add_btn.pack(side="left", padx=2, pady=3)
 
-        self.update_btn = ctk.CTkButton(inventory_btn_frame, text="Update", command=self.update_product, width=100)
+        self.update_btn = ctk.CTkButton(inventory_btn_frame, text="Update", command=self.update_product, width=100, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.update_btn.pack(side="left", padx=2, pady=3)
 
-        self.delete_btn = ctk.CTkButton(inventory_btn_frame, text="Delete", fg_color="red", command=self.delete_product, width=100)
+        self.delete_btn = ctk.CTkButton(inventory_btn_frame, text="Delete", fg_color=get_color("status_error"), command=self.delete_product, width=100, hover_color=get_color("status_error_dark"))
         self.delete_btn.pack(side="left", padx=2, pady=3)
 
-        self.refresh_btn = ctk.CTkButton(inventory_btn_frame, text="Refresh Inventory", command=self.load_inventory, width=135)
+        self.refresh_btn = ctk.CTkButton(inventory_btn_frame, text="Refresh Inventory", command=self.load_inventory, width=135, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.refresh_btn.pack(side="left", padx=2, pady=3)
 
-        self.tree_frame = ctk.CTkFrame(inventory_frame, corner_radius=0)
+        self.tree_frame = ctk.CTkFrame(inventory_frame, corner_radius=0, fg_color="transparent")
         self.tree_frame.pack(fill="both", expand=True)
 
         self.tree = ttk.Treeview(self.tree_frame, columns=("ID", "Name", "Cost Price", "Quantity", "Profit", "Total Price", "Status"), show="headings", height=2)
@@ -71,25 +74,28 @@ class InventoryAndRestockScreen():
         self.vsb.pack(side="right", fill="y", padx=(0, 2), pady=2)
 
         # Total stock amount label frame
-        total_frame = ctk.CTkFrame(inventory_frame, corner_radius=8, fg_color="#74777A")
+        total_frame = ctk.CTkFrame(inventory_frame, corner_radius=8, fg_color=get_color("bg_primary"))
+        
         total_frame.pack(fill="x", padx=3, pady=(8, 0))
 
         self.total_stock_label = ctk.CTkLabel(
             total_frame,
             text="Total Inventory Value: ₱0.00",
             font=ctk.CTkFont(size=13, weight="bold"),
-            text_color="#000000"
+            text_color=get_color("primary")
         )
         self.total_stock_label.pack(anchor="e", padx=12, pady=8)
 
         # RIGHT SIDE - RESTOCK
         restock_frame = ctk.CTkFrame(main_container, corner_radius=0)
+        restock_frame.configure(fg_color=get_color("bg_primary"))
         restock_frame.pack(side="right", fill="both", expand=True, padx=(5, 0))
 
-        restock_title = ctk.CTkLabel(restock_frame, text="RESTOCK HISTORY", font=ctk.CTkFont(size=16, weight="bold"))
+        restock_title = ctk.CTkLabel(restock_frame, text="RESTOCK HISTORY", font=ctk.CTkFont(size=16, weight="bold"),fg_color="transparent", text_color=get_color("primary"))
         restock_title.pack(anchor="center", padx=3, pady=(0, 3))
 
         restock_btn_frame = ctk.CTkFrame(restock_frame, corner_radius=0)
+        restock_btn_frame.configure(fg_color=get_color("bg_primary"))
         restock_btn_frame.pack(fill="x", pady=5,padx=3)
 
         self.add_restock_btn = ctk.CTkButton(restock_btn_frame, text="Restock Product", command=self.add_restock, width=120)
@@ -98,13 +104,13 @@ class InventoryAndRestockScreen():
         self.update_restock_btn = ctk.CTkButton(restock_btn_frame, text="Update", command=self.update_restock, width=80)
         self.update_restock_btn.pack(side="left", padx=2, pady=3)
 
-        self.delete_restock_btn = ctk.CTkButton(restock_btn_frame, text="Delete", fg_color="red", command=self.delete_restock, width=80)
+        self.delete_restock_btn = ctk.CTkButton(restock_btn_frame, text="Delete", fg_color=get_color("status_error"), command=self.delete_restock, width=80)
         self.delete_restock_btn.pack(side="left", padx=2, pady=3)
 
-        self.refresh_restock_btn = ctk.CTkButton(restock_btn_frame, text="Refresh", command=self.load_restock_history, width=100)
+        self.refresh_restock_btn = ctk.CTkButton(restock_btn_frame, text="Refresh", command=self.load_restock_history, width=100, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.refresh_restock_btn.pack(side="left", padx=2, pady=3)
 
-        restock_tree_frame = ctk.CTkFrame(restock_frame, corner_radius=0)
+        restock_tree_frame = ctk.CTkFrame(restock_frame, corner_radius=0, fg_color="transparent")
         restock_tree_frame.pack(fill="both", expand=True)
 
         self.restock_tree = ttk.Treeview(restock_tree_frame, columns=("ID", "Product", "Quantity", "Unit Cost", "Total Cost", "Date"), show="headings", height=2)
@@ -129,14 +135,14 @@ class InventoryAndRestockScreen():
         restock_vsb.pack(side="right", fill="y", padx=(0, 2), pady=2)
 
         # Total restock cost label frame
-        total_restock_frame = ctk.CTkFrame(restock_frame, corner_radius=8, fg_color="#74777A")
+        total_restock_frame = ctk.CTkFrame(restock_frame, corner_radius=8, fg_color=get_color("bg_primary"))
         total_restock_frame.pack(fill="x", padx=3, pady=(8, 0))
 
         self.total_restock_label = ctk.CTkLabel(
             total_restock_frame,
             text="Total Restock Cost: ₱0.00",
             font=ctk.CTkFont(size=13, weight="bold"),
-            text_color="#000000"
+            text_color=get_color("primary")
         )
         self.total_restock_label.pack(anchor="e", padx=12, pady=8)
 
@@ -223,9 +229,13 @@ class InventoryAndRestockScreen():
         if not self.selected_product:
             messagebox.showwarning("Warning", "Please select a product to delete")
             return
-        if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this product?"):
-            delete_product(self.selected_product)
-            self.load_inventory()
+        if messagebox.askyesno("Confirm Delete", "Are you sure you want to permanently delete this product and all its sales history?"):
+            result = delete_product(self.selected_product)
+            if result > 0:
+                messagebox.showinfo("Success", "Product and its sales history permanently deleted!")
+                self.load_inventory()
+            else:
+                messagebox.showerror("Error", "Failed to delete product")
 
     def product_form(self, product_id):
         # Top level window
@@ -583,9 +593,13 @@ class InventoryScreen():
         if not self.selected_product:
             messagebox.showwarning("Warning", "Please select a product to delete")
             return
-        if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this product?"):
-            delete_product(self.selected_product)
-            self.load_inventory()
+        if messagebox.askyesno("Confirm Delete", "Are you sure you want to permanently delete this product and all its sales history?"):
+            result = delete_product(self.selected_product)
+            if result > 0:
+                messagebox.showinfo("Success", "Product and its sales history permanently deleted!")
+                self.load_inventory()
+            else:
+                messagebox.showerror("Error", "Failed to delete product")
 
     def product_form(self, product_id):
         # Top level window

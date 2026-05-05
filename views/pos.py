@@ -6,6 +6,7 @@ from models.sales import create_sale, log_transaction
 from models.customer import get_all_customers, add_customer
 from utils.receipt import get_sale_data, generate_receipt, save_receipt
 from utils.auth import get_current_user
+from utils.colors import get_color
 from database import get_connection
 
 
@@ -13,7 +14,7 @@ class POSScreen:
     def __init__(self, parent, on_checkout=None):
         self.parent = parent
         self.on_checkout = on_checkout
-        self.frame = ctk.CTkFrame(parent, corner_radius=12)
+        self.frame = ctk.CTkFrame(parent, corner_radius=12, fg_color=get_color("bg_primary"))
         self.frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         self.products = []
@@ -26,43 +27,43 @@ class POSScreen:
         self.header_label = ctk.CTkLabel(
             self.frame,
             text="Point of Sales",
-            text_color="#F4F4F4",
+            text_color=get_color("primary"),
             font=ctk.CTkFont(size=20, weight="bold")
         )
         self.header_label.pack(pady=(10, 10))
 
-        top_frame = ctk.CTkFrame(self.frame)
+        top_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
         top_frame.pack(fill="x", padx=10, pady=10)
 
-        self.search_entry = ctk.CTkEntry(top_frame, placeholder_text="Search product...", width=320)
+        self.search_entry = ctk.CTkEntry(top_frame, placeholder_text="Search product...", width=320, fg_color=get_color("bg_secondary"), border_color=get_color("border"), text_color=get_color("text_primary"))
         self.search_entry.pack(side="left", padx=(10, 8), pady=10)
         self.search_entry.bind("<Return>", lambda e: self.load_products())
         self.search_entry.bind("<KeyRelease>", lambda e: self.load_products())
 
-        self.load_btn = ctk.CTkButton(top_frame, text="Refresh", width=100, command=self.load_products)
+        self.load_btn = ctk.CTkButton(top_frame, text="Refresh", width=100, command=self.load_products, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.load_btn.pack(side="left")
 
         self.refresh_customers()
 
-        tables_frame = ctk.CTkFrame(self.frame)
+        tables_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
         tables_frame.pack(fill="both", expand=True, padx=10, pady=(8, 12))
 
-        product_frame = ctk.CTkFrame(tables_frame)
+        product_frame = ctk.CTkFrame(tables_frame, fg_color=get_color("bg_secondary"), corner_radius=12)
         product_frame.pack(side="left", fill="both", expand=True, padx=(0, 5), pady=2)
 
-        cart_frame = ctk.CTkFrame(tables_frame)
+        cart_frame = ctk.CTkFrame(tables_frame, fg_color=get_color("bg_secondary"), corner_radius=12)
         cart_frame.pack(side="left", fill="both", expand=True, padx=(5, 0), pady=2)
 
-        self.products_header = ctk.CTkLabel(product_frame, text="PRODUCTS", font=ctk.CTkFont(size=16, weight="bold"))
-        self.products_header.pack(anchor="w", padx=5, pady=(5, 4))
+        self.products_header = ctk.CTkLabel(product_frame, text="PRODUCTS", font=ctk.CTkFont(size=16, weight="bold"), text_color=get_color("primary"), fg_color="transparent")
+        self.products_header.pack(anchor="w", padx=10, pady=(5, 4))
 
-        product_action_frame = ctk.CTkFrame(product_frame)
+        product_action_frame = ctk.CTkFrame(product_frame, fg_color="transparent")
         product_action_frame.pack(fill="x", padx=5, pady=(0, 8))
 
-        self.quantity_entry = ctk.CTkEntry(product_action_frame, placeholder_text="Quantity", width=100)
+        self.quantity_entry = ctk.CTkEntry(product_action_frame, placeholder_text="Quantity", width=100, fg_color=get_color("bg_primary"), border_color=get_color("border"), text_color=get_color("text_primary"))
         self.quantity_entry.pack(side="left",padx=8,pady=8)
 
-        self.add_btn = ctk.CTkButton(product_action_frame, text="Add to Cart", command=self.add_selected_to_cart)
+        self.add_btn = ctk.CTkButton(product_action_frame, text="Add to Cart", command=self.add_selected_to_cart, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
         self.add_btn.pack(side="left")
 
         self.products_tv = ttk.Treeview(product_frame, columns=("id","name","price","qty"), show="headings", height=8)
@@ -71,16 +72,16 @@ class POSScreen:
             self.products_tv.column(col, width=120, anchor="center")
         self.products_tv.pack(fill="both", expand=True, padx=5, pady=(0, 10))
 
-        self.cart_header = ctk.CTkLabel(cart_frame, text="CART", font=ctk.CTkFont(size=16, weight="bold"))
+        self.cart_header = ctk.CTkLabel(cart_frame, text="CART", font=ctk.CTkFont(size=16, weight="bold"), text_color=get_color("primary"), fg_color="transparent")
         self.cart_header.pack(anchor="w", padx=10, pady=(5, 4))
 
-        cart_action_frame = ctk.CTkFrame(cart_frame)
+        cart_action_frame = ctk.CTkFrame(cart_frame, fg_color="transparent")
         cart_action_frame.pack(fill="x", padx=5, pady=(0, 8))
 
-        self.remove_btn = ctk.CTkButton(cart_action_frame, text="Remove Selected", command=self.remove_selected_from_cart)
+        self.remove_btn = ctk.CTkButton(cart_action_frame, text="Remove Selected", command=self.remove_selected_from_cart, fg_color=get_color("status_error"), hover_color=get_color("status_error_dark"))
         self.remove_btn.pack(side="left",padx=8,pady=8)
 
-        self.total_label = ctk.CTkLabel(cart_action_frame, text="Total: ₱0.00", font=ctk.CTkFont(size=16, weight="bold"))
+        self.total_label = ctk.CTkLabel(cart_action_frame, text="Total: ₱0.00", font=ctk.CTkFont(size=16, weight="bold"), text_color=get_color("accent_blue"))
         self.total_label.pack(side="right", padx=(0, 10))
 
         self.cart_tv = ttk.Treeview(cart_frame, columns=("prod","qty","unit","subtotal"), show="headings", height=8)
@@ -90,14 +91,14 @@ class POSScreen:
         self.cart_tv.pack(fill="both", expand=True, padx=5, pady=(0, 10))
 
         # Checkout and add-customer buttons between tables
-        checkout_container = ctk.CTkFrame(self.frame,bg_color="transparent")
+        checkout_container = ctk.CTkFrame(self.frame,bg_color="transparent", fg_color="transparent")
         checkout_container.pack(fill="x", padx=10, pady=(10, 10))
 
         self.add_customer_btn = ctk.CTkButton(
             checkout_container,
             text="Add customer",
-            fg_color="#25b6c9",
-            hover_color="#1C565F",
+            fg_color=get_color("accent_pink"),
+            hover_color="#ec4899",
             command=self.show_add_customer_dialog,
             height=40,
             width=140,
@@ -108,8 +109,8 @@ class POSScreen:
         self.checkout_btn = ctk.CTkButton(
             checkout_container,
             text="Checkout",
-            fg_color="#C71D7B",
-            hover_color="#6b185b",
+            fg_color=get_color("button_primary"),
+            hover_color=get_color("button_primary_dark"),
             command=self.show_checkout_dialog,
             height=40,
             width=140,
@@ -195,7 +196,7 @@ class POSScreen:
 
         if self.add_to_cart(product, int(q)):
             self.quantity_entry.delete(0, ctk.END)
-            self.status_label.configure(text=f"Added {q} x {product['name']} to cart", text_color="#34d399")
+            self.status_label.configure(text=f"Added {q} x {product['name']} to cart", text_color=get_color("status_success"))
 
     def remove_selected_from_cart(self):
         selected = self.cart_tv.selection()
@@ -220,7 +221,7 @@ class POSScreen:
             current_user = get_current_user()
             user = current_user.get("username") if current_user else "Unknown"
             log_transaction(None, user, "FAILED", "Cart is empty: No items to checkout.")
-            self.status_label.configure(text="Cart is empty", text_color="#f87171")
+            self.status_label.configure(text="Cart is empty", text_color=get_color("status_error"))
             return
 
         if not self.customer_options:
@@ -228,7 +229,7 @@ class POSScreen:
             current_user = get_current_user()
             user = current_user.get("username") if current_user else "Unknown"
             log_transaction(None, user, "FAILED", "No customers available: Cannot proceed with checkout.")
-            self.status_label.configure(text="No customers available", text_color="#f87171")
+            self.status_label.configure(text="No customers available", text_color=get_color("status_error"))
             messagebox.showwarning("Warning", "No customers available. Please add a customer first.")
             return
 
@@ -314,7 +315,16 @@ class POSScreen:
                         return
                     amount_paid = float(amount_paid_text)
                 
-                # For CREDIT: allow partial payment and carry balance to customer account
+                # Validate that credit payment is less than total (partial payment only)
+                if amount_paid >= total:
+                    # Log invalid credit payment attempt
+                    current_user = get_current_user()
+                    user = current_user.get("username") if current_user else "Unknown"
+                    log_transaction(None, user, "FAILED", f"Invalid Credit Payment: Amount paid (₱{amount_paid:.2f}) is equal to or greater than total (₱{total:.2f}). Credit payment should be partial payment only.")
+                    messagebox.showinfo("Invalid Credit Payment", f"The downpayment (₱{amount_paid:.2f}) is equal to or greater than the total amount (₱{total:.2f}).\n\nPlease change the payment method to CASH for full payment.")
+                    return
+                
+                # For CREDIT: partial payment only - carry balance to customer account
                 balance_due = total - amount_paid
                 if balance_due > 0:
                     confirm_msg = f"""CREDIT PAYMENT DETAILS
@@ -407,7 +417,7 @@ Do you want to proceed?"""
                 
                 checkout_dialog.destroy()
                 self.show_receipt(sale_id)
-                self.status_label.configure(text=f"Sale completed: {sale_id}", text_color="#34d399")
+                self.status_label.configure(text=f"Sale completed: {sale_id}", text_color=get_color("status_success"))
                 if self.on_checkout:
                     self.on_checkout(sale_id)
                 self.clear_cart()
@@ -419,7 +429,7 @@ Do you want to proceed?"""
                 messagebox.showerror("Error", f"Error completing transaction: {str(e)}")
                 checkout_dialog.destroy()
 
-        submit_btn = ctk.CTkButton(checkout_dialog, text="Submit", fg_color="#1e40af", hover_color="#2563eb", command=submit_checkout)
+        submit_btn = ctk.CTkButton(checkout_dialog, text="Submit", fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"), command=submit_checkout)
         submit_btn.pack(fill="x", padx=20, pady=(10, 20))
 
     def show_add_customer_dialog(self):
@@ -491,7 +501,7 @@ Do you want to proceed?"""
             messagebox.showinfo("Customer Added", f"Customer '{name}' has been added.")
             dialog.destroy()
 
-        submit_btn = ctk.CTkButton(dialog, text="Submit", fg_color="#16a34a", hover_color="#15803d", command=submit_customer)
+        submit_btn = ctk.CTkButton(dialog, text="Submit", fg_color=get_color("status_success"), hover_color="#15803d", command=submit_customer)
         submit_btn.pack( padx=20, pady=(0, 20))
 
     def refresh_customers(self):
@@ -542,7 +552,7 @@ Do you want to proceed?"""
             save_btn = ctk.CTkButton(
                 btn_frame,
                 text="Save Receipt",
-                fg_color="#16a34a",
+                fg_color=get_color("status_success"),
                 hover_color="#15803d",
                 command=save_receipt_file
             )
@@ -551,8 +561,8 @@ Do you want to proceed?"""
             close_btn = ctk.CTkButton(
                 btn_frame,
                 text="Close",
-                fg_color="#6b7280",
-                hover_color="#4b5563",
+                fg_color=get_color("button_secondary_dark"),
+                hover_color=get_color("button_hover_secondary"),
                 command=receipt_window.destroy
             )
             close_btn.pack(side="left", padx=5)
@@ -562,5 +572,5 @@ Do you want to proceed?"""
             receipt_window.destroy()
         
     def _print_receipt(self):
-        self.status_label.configure(text="Receipt printed (demo mode).", text_color="#34d399")
+        self.status_label.configure(text="Receipt printed (demo mode).", text_color=get_color("status_success"))
 

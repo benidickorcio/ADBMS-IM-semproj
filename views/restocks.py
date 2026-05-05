@@ -4,6 +4,8 @@ from models.restock import restock_product, get_all_restock
 from models.product import view_products
 from tkinter import messagebox, ttk
 
+from utils.colors import get_color
+
 class RestockScreen():
     def __init__(self, parent):
         self.parent = parent
@@ -17,6 +19,7 @@ class RestockScreen():
 
         # Buttons
         self.btn_frame = ctk.CTkFrame(self.parent)
+        self.btn_frame.configure(fg_color=get_color("bg_primary"))
         self.btn_frame.pack(fill="x", padx=20, pady=5)
 
         self.add_btn = ctk.CTkButton(self.btn_frame, text="Restock product", command=self.add_restock)

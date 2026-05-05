@@ -21,7 +21,9 @@ def initialize_db():
         name          VARCHAR(100)  NOT NULL,
         username      VARCHAR(50)   NOT NULL UNIQUE,
         password_hash VARCHAR(255)  NOT NULL,
-        role          ENUM('ADMIN','CASHIER') DEFAULT 'CASHIER'
+        role          ENUM('ADMIN','CASHIER') DEFAULT 'CASHIER',
+        is_deleted    BOOLEAN       DEFAULT FALSE,
+        deleted_at    DATETIME      DEFAULT NULL
     );
     """,
 
@@ -48,7 +50,9 @@ def initialize_db():
         name            VARCHAR(100)  NOT NULL,
         address         VARCHAR(200),
         contact_number  VARCHAR(20),
-        current_balance DECIMAL(10,2) DEFAULT 0.00
+        current_balance DECIMAL(10,2) DEFAULT 0.00,
+        is_deleted      BOOLEAN       DEFAULT FALSE,
+        deleted_at      DATETIME      DEFAULT NULL
     );
     """,
 
@@ -96,7 +100,7 @@ def initialize_db():
     );
     """,
 
-    # 6. RESTOCK (history ng bawat restock)
+    # RESTOCK (history ng bawat restock)
     """
     CREATE TABLE IF NOT EXISTS restock (
         restock_id   INT           AUTO_INCREMENT PRIMARY KEY,
@@ -108,7 +112,7 @@ def initialize_db():
     );
     """,
 
-    # 7. TRANSACTIONS LOG
+    # TRANSACTIONS LOG
     """
     CREATE TABLE IF NOT EXISTS transactions (
         transaction_id   INT           AUTO_INCREMENT PRIMARY KEY,
@@ -155,7 +159,7 @@ def initialize_db():
         END
     """,
 
-    # BACKUP TRIGGER — fires before a customer row is deleted
+    # BACKUP TRIGGER —  before a customer row is deleted
     """CREATE TRIGGER IF NOT EXISTS backup_customer_on_delete
         BEFORE DELETE ON customers
         FOR EACH ROW
@@ -244,7 +248,8 @@ def initialize_db():
         SELECT user_id, name, username, role
         FROM users
         WHERE username = p_username
-        AND password_hash = p_password;
+        AND password_hash = p_password
+        AND is_deleted = FALSE;
     END
     """,
     """
@@ -315,7 +320,8 @@ END
     # execute functions
     for function in functions:
         cursor.execute(function)
-    #------- DEFAULT ADMIN ACCOUNT --------------
+    
+    #DEFAULT ADMIN ACCOUNT
     
     cursor.execute("SELECT COUNT(*) FROM users")
     count = cursor.fetchone()[0]
@@ -328,8 +334,9 @@ END
                     INSERT INTO users (name,username,password_hash,role)
                     VALUES(%s,%s,%s,%s)
                     """,("ARNEL ERMITA","rnel",default_password,"ADMIN"))
-        
-    # -------CASHIER DEFAULT ACCOUNTS-------------------------------------
+    
+    
+    #CASHIER DEFAULT ACCOUNTS
         def_cashier_password = hashlib.sha256("cashier123".encode()).hexdigest()
         
         cashier_def_accounts = [
@@ -340,6 +347,13 @@ END
                         VALUES(%s,%s,%s,%s)
                         """,cashier_def_accounts)
         
+        # Create Unknown user for orphaned records when users are deleted
+        unknown_password = hashlib.sha256("unknown_system_user".encode()).hexdigest()
+        cursor.execute("""
+                    INSERT INTO users (name,username,password_hash,role,is_deleted)
+                    VALUES(%s,%s,%s,%s,%s)
+                    """,("System Unknown User","Unknown",unknown_password,"CASHIER",True))
+    
     conn.commit()
     cursor.close()
     conn.close()
@@ -361,13 +375,13 @@ def get_current_user(username: str, password_hash: str) -> dict | None:
     return user
 
 
-# ========== USER MANAGEMENT FUNCTIONS ==========
+#  USER MANAGEMENT FUNCTIONS
 
 def get_all_users():
-    """Get all users (for admin view). Returns list of user dicts."""
+    """Get all active users (for admin view). Returns list of user dicts."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT user_id, name, username, password_hash, role FROM users ORDER BY user_id")
+    cursor.execute("SELECT user_id, name, username, password_hash, role FROM users WHERE is_deleted = FALSE ORDER BY user_id")
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -375,23 +389,50 @@ def get_all_users():
 
 
 def delete_user_by_username(username: str) -> bool:
-    """Delete user by username. Returns True if successful, False if failed or not allowed."""
-    # List of default accounts that cannot be deleted
-    default_usernames = ["devskiel", "Doxgiane", "Doxbene"]
+    """Permanently delete user account and replace user references in records with 'Unknown'. Returns True if successful, False if failed or not allowed."""
+    # List of protected accounts that cannot be deleted
+    protected_username = ["rnel"]
     
-    if username in default_usernames:
+    if username in protected_username:
         return False
     
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        cursor.execute("DELETE FROM users WHERE username = %s", (username,))
+        # Check if user is admin and if this is the last admin
+        cursor.execute("SELECT role FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
+        user = cursor.fetchone()
+        
+        if user and user[0] == 'ADMIN':
+            cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'ADMIN' AND is_deleted = FALSE")
+            admin_count = cursor.fetchone()[0]
+            if admin_count <= 1:
+                # Cannot delete the last admin
+                return False
+        
+        # Update all sales records where this user was the creator, set to "Unknown"
+        cursor.execute(
+            "UPDATE sales SET created_by = %s WHERE created_by = %s",
+            ("Unknown", username)
+        )
+        
+        # Update all transaction records where this user was the creator, set to "Unknown"
+        cursor.execute(
+            "UPDATE transactions SET created_by = %s WHERE created_by = %s",
+            ("Unknown", username)
+        )
+        
+        # Mark user as deleted instead of deleting
+        cursor.execute(
+            "UPDATE users SET is_deleted = TRUE, deleted_at = NOW() WHERE username = %s",
+            (username,)
+        )
         conn.commit()
         return cursor.rowcount > 0
     except Exception as e:
         conn.rollback()
-        raise Exception(f"Error deleting user: {str(e)}")
+        raise Exception(f"Error marking user as deleted: {str(e)}")
     finally:
         cursor.close()
         conn.close()

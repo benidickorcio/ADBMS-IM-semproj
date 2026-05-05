@@ -21,41 +21,52 @@ def delete_product(product_id):
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # First get all sale_ids that contain this product
+        # Step 1: Check if product has any sales
         cursor.execute(
-            "SELECT DISTINCT sale_id FROM sold_items WHERE product_id = %s",
+            "SELECT COUNT(*) as count FROM sold_items WHERE product_id = %s",
             (product_id,)
         )
-        sale_ids = [row[0] for row in cursor.fetchall()]
+        sales_count = cursor.fetchone()[0]
         
-        # Delete related sold_items
-        cursor.execute("DELETE FROM sold_items WHERE product_id=%s", (product_id,))
+        # If product has sales, prevent deletion
+        if sales_count > 0:
+            cursor.close()
+            conn.close()
+            return {
+                "success": False,
+                "message": f"Cannot delete product: It has {sales_count} sales history record(s). Please delete the sales first.",
+                "deleted": 0
+            }
         
-        # Delete related restock history
+        # Step 2: Delete related restock history (no foreign key constraints here)
         cursor.execute("DELETE FROM restock WHERE product_id=%s", (product_id,))
+        deleted_restocks = cursor.rowcount
         
-        # Delete sales that had this product (only if no other products)
-        for sale_id in sale_ids:
-            cursor.execute(
-                "SELECT COUNT(*) FROM sold_items WHERE sale_id = %s",
-                (sale_id,)
-            )
-            count = cursor.fetchone()[0]
-            if count == 0:
-                cursor.execute("DELETE FROM sales WHERE sales_id = %s", (sale_id,))
-        
-        # Now delete the product
+        # Step 3: Delete the product itself
         cursor.execute("DELETE FROM products WHERE product_id=%s", (product_id,))
+        deleted_product = cursor.rowcount
+        
         conn.commit()
-        rowcount = cursor.rowcount
+        
+        print(f"Product {product_id} deleted successfully:")
+        print(f"  - Restock records deleted: {deleted_restocks}")
+        
+        return {
+            "success": True,
+            "message": "Product deleted successfully!",
+            "deleted": deleted_product
+        }
     except Exception as e:
         conn.rollback()
         print(f"Error deleting product: {e}")
-        rowcount = 0
+        return {
+            "success": False,
+            "message": f"Error deleting product: {str(e)}",
+            "deleted": 0
+        }
     finally:
         cursor.close()
         conn.close()
-    return rowcount
 
 
 def view_products():

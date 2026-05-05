@@ -30,7 +30,7 @@ def create_sale(customer_id, items, payment_method, amount_paid, total_amount=No
     cursor = conn.cursor()
 
     try:
-        # Calculate totals (no comprehensions)
+        # Calculate totals 
         if total_amount is None:
             total = 0
             for item in items:
@@ -79,7 +79,13 @@ def create_sale(customer_id, items, payment_method, amount_paid, total_amount=No
             if customer:
                 balance_due = total_amount - amount_paid
                 new_balance = float(customer["current_balance"]) + balance_due
-                update_customer(customer_id, current_balance=new_balance, conn=conn)
+                # Pass the customer's current name along with the new balance
+                update_customer(
+                    customer_id, 
+                    name=customer.get("name", "Unknown"),
+                    current_balance=new_balance, 
+                    conn=conn
+                )
 
         conn.commit()
         

@@ -5,7 +5,7 @@ import mysql.connector
 def get_all_customers():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM customers ORDER BY customer_id")
+    cursor.execute("SELECT * FROM customers WHERE is_deleted = FALSE ORDER BY customer_id")
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -15,7 +15,7 @@ def get_all_customers():
 def get_customer_by_id(customer_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM customers WHERE customer_id=%s", (customer_id,))
+    cursor.execute("SELECT * FROM customers WHERE customer_id=%s AND is_deleted = FALSE", (customer_id,))
     row = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -27,7 +27,7 @@ def search_customer(keyword):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
-        "SELECT * FROM customers WHERE name LIKE %s OR contact_number LIKE %s OR address LIKE %s",
+        "SELECT * FROM customers WHERE is_deleted = FALSE AND (name LIKE %s OR contact_number LIKE %s OR address LIKE %s)",
         (query, query, query),
     )
     rows = cursor.fetchall()
@@ -122,27 +122,36 @@ def mark_customer_paid_balance(customer_id):
 
 
 def delete_customer(customer_id):
+    """Backup customer to customers_backup table, then mark as deleted"""
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # Get customer name before deletion for backup reference
-        cursor.execute("SELECT name FROM customers WHERE customer_id=%s", (customer_id,))
-        result = cursor.fetchone()
-        customer_name = result[0] if result else "Unknown"
-        
-        # Update sales to remove customer reference but keep the sales history
+        # Get complete customer details before backing up
         cursor.execute(
-            "UPDATE sales SET customer_id = NULL WHERE customer_id = %s",
+            "SELECT customer_id, name, address, contact_number, current_balance FROM customers WHERE customer_id=%s AND is_deleted = FALSE",
             (customer_id,)
         )
+        customer_data = cursor.fetchone()
         
-        # Now delete the customer (trigger will auto-backup to customers_backup)
-        cursor.execute("DELETE FROM customers WHERE customer_id=%s", (customer_id,))
+        if not customer_data:
+            return 0
+        
+        # Insert customer data into backup table
+        cursor.execute(
+            "INSERT INTO customers_backup (customer_id, name, address, contact_number, current_balance) VALUES (%s, %s, %s, %s, %s)",
+            (customer_data[0], customer_data[1], customer_data[2], customer_data[3], customer_data[4])
+        )
+        
+        # Mark customer as deleted (soft delete)
+        cursor.execute(
+            "UPDATE customers SET is_deleted = TRUE, deleted_at = NOW(), name = 'Unknown' WHERE customer_id=%s",
+            (customer_id,)
+        )
         conn.commit()
         rowcount = cursor.rowcount
     except Exception as e:
         conn.rollback()
-        print(f"Error deleting customer: {e}")
+        print(f"Error deleting and backing up customer: {e}")
         rowcount = 0
     finally:
         cursor.close()
@@ -188,11 +197,11 @@ def restore_backup_customer(customer_id):
         if not customer_data:
             return False
         
-        # Insert back to active customers table
+        # Update the deleted customer record in active table to restore it
         # Note: customer_data indices: [0]=backup_id, [1]=customer_id, [2]=name, [3]=address, [4]=contact_number, [5]=current_balance
         cursor.execute(
-            "INSERT INTO customers (customer_id, name, address, contact_number, current_balance) VALUES (%s, %s, %s, %s, %s)",
-            (customer_data[1], customer_data[2], customer_data[3], customer_data[4], customer_data[5])
+            "UPDATE customers SET is_deleted=FALSE, deleted_at=NULL, name=%s, address=%s, contact_number=%s, current_balance=%s WHERE customer_id=%s",
+            (customer_data[2], customer_data[3], customer_data[4], customer_data[5], customer_data[1])
         )
         
         # Delete from backup
