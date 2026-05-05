@@ -92,6 +92,31 @@ def view_products():
     return filtered_rows
 
 
+def get_average_cost_price(product_id):
+    """Calculate the weighted average cost price from all restock history."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT 
+                SUM(quantity * unit_cost) / SUM(quantity) AS avg_cost
+            FROM restock 
+            WHERE product_id = %s AND quantity > 0
+            """,
+            (product_id,)
+        )
+        result = cursor.fetchone()
+        avg_cost = float(result[0]) if result and result[0] is not None else 0.0
+    except Exception as e:
+        print(f"Error calculating average cost price: {e}")
+        avg_cost = 0.0
+    finally:
+        cursor.close()
+        conn.close()
+    return avg_cost
+
+
 def update_product(product_id, name=None, cost_price=None, profit=None, total_price=None, quantity=None):
     fields = []
     values = []

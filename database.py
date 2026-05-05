@@ -141,6 +141,7 @@ def initialize_db():
             ELSE
                 SET NEW.status = 'IN STOCK';
             END IF;
+            SET NEW.total_price = NEW.quantity * NEW.cost_price;
         END
     """,
 
@@ -156,6 +157,7 @@ def initialize_db():
             ELSE
                 SET NEW.status = 'IN STOCK';
             END IF;
+            SET NEW.total_price = NEW.quantity * NEW.cost_price;
         END
     """,
 

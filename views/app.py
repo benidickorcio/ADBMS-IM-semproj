@@ -135,7 +135,7 @@ class CTKMainApp(ctk.CTk):
     def _refresh_views_after_checkout(self, sale_id):
         if getattr(self, "sales_screen", None):
             try:
-                self.sales_screen.load_sales()
+                self.sales_screen.load_sales_data()
             except Exception:
                 pass
         if getattr(self, "inventory_screen", None):

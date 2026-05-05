@@ -40,9 +40,6 @@ class POSScreen:
         self.search_entry.bind("<Return>", lambda e: self.load_products())
         self.search_entry.bind("<KeyRelease>", lambda e: self.load_products())
 
-        self.load_btn = ctk.CTkButton(top_frame, text="Refresh", width=100, command=self.load_products, fg_color=get_color("button_primary"), hover_color=get_color("button_primary_dark"))
-        self.load_btn.pack(side="left")
-
         self.refresh_customers()
 
         tables_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
@@ -421,6 +418,7 @@ Do you want to proceed?"""
                 if self.on_checkout:
                     self.on_checkout(sale_id)
                 self.clear_cart()
+                self.load_products()  # Auto-refresh products table after checkout
             except Exception as e:
                 # Log failed transaction from POS
                 current_user = get_current_user()
