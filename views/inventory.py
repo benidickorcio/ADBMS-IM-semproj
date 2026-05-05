@@ -229,10 +229,16 @@ class InventoryAndRestockScreen():
         if not self.selected_product:
             messagebox.showwarning("Warning", "Please select a product to delete")
             return
-        if messagebox.askyesno("Confirm Delete", "Are you sure you want to permanently delete this product and all its sales history?"):
+        if messagebox.askyesno("Confirm Delete", "Are you sure you want to permanently delete this product?"):
             result = delete_product(self.selected_product)
-            if result > 0:
-                messagebox.showinfo("Success", "Product and its sales history permanently deleted!")
+            if isinstance(result, dict):
+                if result.get("success"):
+                    messagebox.showinfo("Success", result.get("message", "Product deleted successfully!"))
+                    self.load_inventory()
+                else:
+                    messagebox.showerror("Error", result.get("message", "Failed to delete product"))
+            elif isinstance(result, int) and result > 0:
+                messagebox.showinfo("Success", "Product deleted successfully!")
                 self.load_inventory()
             else:
                 messagebox.showerror("Error", "Failed to delete product")
@@ -277,7 +283,6 @@ class InventoryAndRestockScreen():
                 self.name_entry.insert(0, product['name'])
                 self.cost_price_entry.insert(0, str(latest_cost))
                 self.profit_entry.insert(0, str(profit_value))
-                self.total_price_entry.insert(0, str(latest_cost + profit_value))
                 self.qty_entry.insert(0, str(product['quantity']))
 
         # Buttons
@@ -593,10 +598,16 @@ class InventoryScreen():
         if not self.selected_product:
             messagebox.showwarning("Warning", "Please select a product to delete")
             return
-        if messagebox.askyesno("Confirm Delete", "Are you sure you want to permanently delete this product and all its sales history?"):
+        if messagebox.askyesno("Confirm Delete", "Are you sure you want to permanently delete this product?"):
             result = delete_product(self.selected_product)
-            if result > 0:
-                messagebox.showinfo("Success", "Product and its sales history permanently deleted!")
+            if isinstance(result, dict):
+                if result.get("success"):
+                    messagebox.showinfo("Success", result.get("message", "Product deleted successfully!"))
+                    self.load_inventory()
+                else:
+                    messagebox.showerror("Error", result.get("message", "Failed to delete product"))
+            elif isinstance(result, int) and result > 0:
+                messagebox.showinfo("Success", "Product deleted successfully!")
                 self.load_inventory()
             else:
                 messagebox.showerror("Error", "Failed to delete product")
@@ -640,7 +651,6 @@ class InventoryScreen():
                 self.name_entry.insert(0, product['name'])
                 self.cost_price_entry.insert(0, str(latest_cost))
                 self.profit_entry.insert(0, str(product.get('profit', 0)))
-                self.total_price_entry.insert(0, str(latest_cost + product.get('profit', 0)))
                 self.qty_entry.insert(0, str(product['quantity']))
 
         # Buttons

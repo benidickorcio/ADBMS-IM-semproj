@@ -435,7 +435,7 @@ Do you want to proceed?"""
     def show_add_customer_dialog(self):
         dialog = ctk.CTkToplevel(self.frame)
         dialog.title("Add Customer")
-        dialog.geometry("420x320")
+        dialog.geometry("420x380")
         dialog.resizable(False, False)
         dialog.grab_set()
 

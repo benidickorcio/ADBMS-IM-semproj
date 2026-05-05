@@ -17,6 +17,9 @@ def add_product(name, total_price=0.0, quantity=0, cost_price=0.0, profit=None):
     return product_id
 
 
+DELETED_PRODUCT_NAME = "deleted data"
+
+
 def delete_product(product_id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -28,14 +31,17 @@ def delete_product(product_id):
         )
         sales_count = cursor.fetchone()[0]
         
-        # If product has sales, prevent deletion
         if sales_count > 0:
-            cursor.close()
-            conn.close()
+            # Soft-delete the product while preserving sales history links.
+            cursor.execute(
+                "UPDATE products SET name=%s, cost_price=%s, profit=%s, total_price=%s, quantity=%s, status=%s WHERE product_id=%s",
+                (DELETED_PRODUCT_NAME, 0.0, 0.0, 0.0, 0, "OUT OF STOCK", product_id)
+            )
+            conn.commit()
             return {
-                "success": False,
-                "message": f"Cannot delete product: It has {sales_count} sales history record(s). Please delete the sales first.",
-                "deleted": 0
+                "success": True,
+                "message": "Product had sales history, so it was marked as deleted data and sales history is preserved.",
+                "deleted": cursor.rowcount
             }
         
         # Step 2: Delete related restock history (no foreign key constraints here)
@@ -76,10 +82,14 @@ def view_products():
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
+    filtered_rows = []
     for row in rows:
         if 'price' not in row:
             row['price'] = row.get('total_price', 0.0)
-    return rows
+        # Hide soft-deleted products from inventory listings
+        if row.get('name') != DELETED_PRODUCT_NAME:
+            filtered_rows.append(row)
+    return filtered_rows
 
 
 def update_product(product_id, name=None, cost_price=None, profit=None, total_price=None, quantity=None):
