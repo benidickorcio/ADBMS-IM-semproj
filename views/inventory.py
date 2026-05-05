@@ -266,10 +266,6 @@ class InventoryAndRestockScreen():
             self.profit_entry = ctk.CTkEntry(self.form_window)
             self.profit_entry.pack(pady=5)
 
-            ctk.CTkLabel(self.form_window, text="Total Price:").pack(pady=5)
-            self.total_price_entry = ctk.CTkEntry(self.form_window)
-            self.total_price_entry.pack(pady=5)
-
             ctk.CTkLabel(self.form_window, text="Quantity:").pack(pady=5)
             self.qty_entry = ctk.CTkEntry(self.form_window)
             self.qty_entry.pack(pady=5)
@@ -300,7 +296,7 @@ class InventoryAndRestockScreen():
                 # Editing: get all fields
                 cost_price = float(self.cost_price_entry.get().strip())
                 profit = float(self.profit_entry.get().strip())
-                total_price = float(self.total_price_entry.get().strip())
+                total_price = cost_price + profit  # Auto-calculate
                 qty = int(self.qty_entry.get().strip())
             else:
                 # Adding: set defaults
@@ -310,7 +306,7 @@ class InventoryAndRestockScreen():
                 qty = 0
         except ValueError:
             if product_id is not None:
-                messagebox.showerror("Error", "Invalid numeric values for cost price, profit, total price, or quantity")
+                messagebox.showerror("Error", "Invalid numeric values for cost price, profit, or quantity")
             else:
                 messagebox.showerror("Error", "Invalid input")
             return
@@ -320,8 +316,8 @@ class InventoryAndRestockScreen():
         if product_id is not None and qty < 0:
             messagebox.showerror("Error", "Quantity must be non-negative")
             return
-        if product_id is not None and (cost_price < 0 or profit < 0 or total_price < 0):
-            messagebox.showerror("Error", "Cost price, profit, and total price must be non-negative")
+        if product_id is not None and (cost_price < 0 or profit < 0):
+            messagebox.showerror("Error", "Cost price and profit must be non-negative")
             return
 
         if product_id:
@@ -635,10 +631,6 @@ class InventoryScreen():
             self.profit_entry = ctk.CTkEntry(self.form_window)
             self.profit_entry.pack(pady=5)
 
-            ctk.CTkLabel(self.form_window, text="Total Price:").pack(pady=5)
-            self.total_price_entry = ctk.CTkEntry(self.form_window)
-            self.total_price_entry.pack(pady=5)
-
             ctk.CTkLabel(self.form_window, text="Quantity:").pack(pady=5)
             self.qty_entry = ctk.CTkEntry(self.form_window)
             self.qty_entry.pack(pady=5)
@@ -668,7 +660,7 @@ class InventoryScreen():
                 # Editing: get all fields
                 cost_price = float(self.cost_price_entry.get().strip())
                 profit = float(self.profit_entry.get().strip())
-                total_price = float(self.total_price_entry.get().strip())
+                total_price = cost_price + profit  # Auto-calculate
                 qty = int(self.qty_entry.get().strip())
             else:
                 # Adding: set defaults
@@ -678,7 +670,7 @@ class InventoryScreen():
                 qty = 0
         except ValueError:
             if product_id is not None:
-                messagebox.showerror("Error", "Invalid numeric values for cost price, profit, total price, or quantity")
+                messagebox.showerror("Error", "Invalid numeric values for cost price, profit, or quantity")
             else:
                 messagebox.showerror("Error", "Invalid input")
             return
@@ -688,8 +680,8 @@ class InventoryScreen():
         if product_id is not None and qty < 0:
             messagebox.showerror("Error", "Quantity must be non-negative")
             return
-        if product_id is not None and (cost_price < 0 or profit < 0 or total_price < 0):
-            messagebox.showerror("Error", "Cost price, profit, and total price must be non-negative")
+        if product_id is not None and (cost_price < 0 or profit < 0):
+            messagebox.showerror("Error", "Cost price and profit must be non-negative")
             return
 
         if product_id:
